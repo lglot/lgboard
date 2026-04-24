@@ -1,0 +1,28 @@
+# Example SWAG/nginx reverse-proxy snippet for lgboard.
+# Drop into swag/nginx/proxy-confs/ as lgboard.subdomain.conf (or similar)
+# and reload nginx. Assumes the lgboard container is named "lgboard" on
+# Docker network "local".
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name dash.*;
+
+    include /config/nginx/ssl.conf;
+
+    client_max_body_size 0;
+
+    # If you use Authelia, include the forward-auth snippet:
+    # include /config/nginx/authelia-server.conf;
+
+    location / {
+        # include /config/nginx/authelia-location.conf;
+        include /config/nginx/proxy.conf;
+        include /config/nginx/resolver.conf;
+        set $upstream_app lgboard;
+        set $upstream_port 8080;
+        set $upstream_proto http;
+        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+    }
+}

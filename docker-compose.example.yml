@@ -1,0 +1,29 @@
+# Example Docker Compose for lgboard.
+#
+# Copy to docker-compose.yml (or merge into your existing compose) and adjust.
+# Minimum required mounts:
+#   - config volume (persists your services list and branding)
+#
+# Optional but recommended:
+#   - /proc:/host/proc:ro    -> real CPU / RAM / uptime
+#   - /:/host/root:ro,rslave -> real disk usage for the host filesystem
+#   - /var/run/docker.sock:ro -> containers running/total counter
+#
+# If you omit any of the optional mounts, the corresponding stat is simply
+# hidden in the UI (skeleton dims out after first fetch). No fake numbers.
+
+services:
+  lgboard:
+    build: .
+    # Or, once published:  image: ghcr.io/lglot/lgboard:latest
+    container_name: lgboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # Remove if you put lgboard behind a reverse proxy on the same Docker network.
+    environment:
+      - PORT=8080
+    volumes:
+      - ./lgboard-config:/config
+      - /proc:/host/proc:ro
+      - /:/host/root:ro,rslave
+      - /var/run/docker.sock:/var/run/docker.sock:ro

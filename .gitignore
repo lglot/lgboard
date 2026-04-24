@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Runtime config from compose mount — personal, don't commit
+lgboard-config/
+config/
+dev-config/
+
+# Offline-bundled fonts (users can add locally)
+public/vendor/fonts/
+
+# IDE
+.idea/
+.vscode/
+*.swp

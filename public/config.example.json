@@ -1,0 +1,81 @@
+{
+  "branding": {
+    "title": "Home Server",
+    "subtitle": "yourhost.local",
+    "user": "You",
+    "monogram": "Y",
+    "footerText": null
+  },
+  "theme": {
+    "mode": "dark",
+    "accent": "ink",
+    "customAccentHex": null,
+    "density": "comfortable",
+    "fontDisplay": "Space Grotesk",
+    "fontMono": "JetBrains Mono",
+    "fontsOffline": false,
+    "availableThemes": [
+      { "id": "ink",      "label": "Ink",      "color": "oklch(45% 0.14 250)" },
+      { "id": "emerald",  "label": "Emerald",  "color": "oklch(55% 0.14 160)" },
+      { "id": "amber",    "label": "Amber",    "color": "oklch(62% 0.14 70)"  },
+      { "id": "rose",     "label": "Rose",     "color": "oklch(55% 0.16 15)"  },
+      { "id": "violet",   "label": "Violet",   "color": "oklch(50% 0.18 300)" },
+      { "id": "graphite", "label": "Graphite", "color": "oklch(30% 0.01 260)" }
+    ]
+  },
+  "features": {
+    "showStats": true,
+    "showFavs": true,
+    "showQuickActions": true,
+    "showCommandPalette": true,
+    "showFooter": true,
+    "showGreeting": true
+  },
+  "quickActions": [
+    { "id": "add",    "label": "Aggiungi servizio", "icon": "plus",     "action": "modal:add-service", "payload": "",                                 "primary": true },
+    { "id": "ssh",    "label": "SSH",               "icon": "terminal", "action": "copy",             "payload": "ssh yourhost" },
+    { "id": "router", "label": "Router",            "icon": "router",   "action": "url",              "payload": "http://192.168.1.1" },
+    { "id": "docs",   "label": "Docs",              "icon": "book",     "action": "url",              "payload": "https://github.com/lglot/lgboard#readme" }
+  ],
+  "stats": {
+    "enabled": true,
+    "hostProc": "/host/proc",
+    "hostRoot": "/host/root",
+    "dockerSocket": "/var/run/docker.sock"
+  },
+  "healthcheck": {
+    "enabled": true,
+    "intervalSeconds": 30,
+    "timeoutSeconds": 5,
+    "userAgent": "lgboard-health/1.0"
+  },
+  "categories": [
+    { "id": "media",   "label": "Media",           "icon": "media"   },
+    { "id": "net",     "label": "Network & Utils", "icon": "tools"   },
+    { "id": "infra",   "label": "Infrastructure",  "icon": "server"  },
+    { "id": "devices", "label": "Devices",         "icon": "devices" }
+  ],
+  "apps": [
+    {
+      "id": "example-media",
+      "name": "Jellyfin",
+      "desc": "Media streaming",
+      "cat": "media",
+      "url": "https://jellyfin.example.com",
+      "icon": "jellyfin",
+      "fav": true,
+      "target": "auto",
+      "healthcheck": true
+    },
+    {
+      "id": "example-subfolder",
+      "name": "Portainer",
+      "desc": "Container manager (subfolder route)",
+      "cat": "infra",
+      "url": "/portainer/",
+      "icon": "portainer",
+      "target": "_self",
+      "healthcheck": false
+    }
+  ]
+}

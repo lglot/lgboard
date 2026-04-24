@@ -1,0 +1,6 @@
+# Example Caddyfile snippet for lgboard.
+# Add to your Caddyfile. Caddy handles TLS automatically.
+
+dash.example.com {
+    reverse_proxy lgboard:8080
+}

@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.dockerignore
+.DS_Store
+README.md
+LICENSE
+lgboard-config/
+config/
+dev-config/
+docker-compose*.yml
+examples/
+.idea
+.vscode
