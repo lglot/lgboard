@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 from .docker_api import DockerClient
 from .health import HealthChecker
-from .stats import CPUSampler, NetSampler, read_mem, read_disk, read_uptime, read_cpuinfo
+from .stats import CPUSampler, NetSampler, read_mem, read_disks, read_uptime, read_cpuinfo, read_temps
 
 PUBLIC = Path(os.environ.get("LGBOARD_PUBLIC", "/app/public"))
 CONFIG_DIR = Path(os.environ.get("LGBOARD_CONFIG", "/config"))
@@ -68,7 +68,12 @@ class State:
         self.net = NetSampler(stats_cfg.get("hostProc", "/host/proc"))
         self.docker = DockerClient(stats_cfg.get("dockerSocket", "/var/run/docker.sock"))
         self.host_proc = stats_cfg.get("hostProc", "/host/proc")
-        self.host_root = stats_cfg.get("hostRoot", "/host/root")
+        self.host_sys = stats_cfg.get("hostSys", "/host/sys")
+        host_root = stats_cfg.get("hostRoot", "/host/root")
+        # Back-compat: if no `disks` array given, fall back to single hostRoot.
+        self.disks_cfg = stats_cfg.get("disks") or [
+            {"id": "rootfs", "label": "rootfs", "path": host_root}
+        ]
         hc_cfg = cfg.get("healthcheck", {})
         self.health = HealthChecker(
             get_apps=lambda: load_config().get("apps", []),
@@ -165,19 +170,22 @@ class Handler(SimpleHTTPRequestHandler):
         assert STATE is not None
         cpu = STATE.cpu.sample()
         mem = read_mem(STATE.host_proc)
-        disk = read_disk(STATE.host_root)
+        disks = read_disks(STATE.disks_cfg)
         uptime = read_uptime(STATE.host_proc)
         cpuinfo = read_cpuinfo(STATE.host_proc)
         net = STATE.net.sample()
         containers = STATE.docker.containers()
+        temps = read_temps(STATE.host_sys)
         payload = {
             "cpu": cpu,
             "cpuInfo": cpuinfo,
             "ram": mem,
-            "disk": disk,
+            "disks": disks,
+            "disk": disks[0] if disks else None,  # legacy single-disk shape
             "uptimeSec": uptime,
             "net": net,
             "containers": containers,
+            "temps": temps,
             "timestamp": int(__import__("time").time() * 1000),
         }
         self.send_json(200, payload)

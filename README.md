@@ -4,7 +4,8 @@ A simple, fast, self-hosted homelab dashboard. Zero build step, zero JS
 dependencies beyond React+Babel bundled offline, zero Python packages beyond
 the standard library.
 
-- **Real** CPU/RAM/disk/uptime/network stats read from the host `/proc`
+- **Real** CPU/RAM/disk/temperature/uptime/network stats read from the host `/proc` and `/sys`
+- **Multiple disks** — mount any number of partitions and list them in `stats.disks`
 - **Real** container counter read from the Docker Engine socket (read-only)
 - **Real** per-service health-check with an active `up/down` dot
 - Everything — branding, theme, fonts, shown sections, quick-actions, services
@@ -40,7 +41,7 @@ The whole UI is driven by `config.json`. Here are the top-level keys:
 | `theme`        | Default mode (light/dark), accent palette, density, fonts, available themes |
 | `features`     | Feature flags: stats strip, pinned row, quick actions, command palette, footer, greeting |
 | `quickActions` | Array of buttons shown above the stats strip (see below) |
-| `stats`        | Path to host `/proc`, root fs, docker socket (inside the container) |
+| `stats`        | Paths to host `/proc`, `/sys`, docker socket, and `disks[]` list |
 | `healthcheck`  | Interval, timeout, user-agent for the background checker |
 | `categories`   | List of sections (`media`, `infra`, `devices`, …) — shown in display order |
 | `apps`         | Your services |

@@ -101,6 +101,17 @@ const fmtUptime = (sec) => {
   return `${d}d ${h}h`;
 };
 
+// Picks the smallest unit that keeps the value >= 1 (or B for tiny).
+function formatBytes(n) {
+  if (n == null || !isFinite(n)) return null;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  const decimals = v < 10 ? 1 : 0;
+  return `${v.toFixed(decimals)} ${units[i]}`;
+}
+
 const resolveTarget = (app) => {
   if (app.target === '_self' || app.target === '_blank') return app.target;
   return /^https?:\/\//i.test(app.url || '') ? '_blank' : '_self';
@@ -236,11 +247,18 @@ function StatsStrip({ hidden }) {
 
   const cpu = stats?.cpu;
   const mem = stats?.ram;
-  const disk = stats?.disk;
+  const disks = stats?.disks || (stats?.disk ? [stats.disk] : []);
   const up = stats?.uptimeSec;
   const cpuInfo = stats?.cpuInfo;
   const net = stats?.net;
   const containers = stats?.containers;
+  const temps = stats?.temps;
+  const cpuTemp = temps?.cpuC;
+
+  const memSub = mem
+    ? `${mem.pct}% di ${formatBytes(mem.totalBytes)}`
+    : (loaded ? 'n/a' : <Skel w={100}/>);
+  const memValue = mem ? formatBytes(mem.usedBytes) : <Skel w={40}/>;
 
   return (
     <section className="stats">
@@ -251,20 +269,44 @@ function StatsStrip({ hidden }) {
         sub={cpuInfo ? `${cpuInfo.cores || '?'} core${cpuInfo.ghz ? ` · ${cpuInfo.ghz} GHz` : ''}` : (loaded ? 'n/a' : <Skel w={80}/>)}
         ring={cpu ?? 0}
       />
+      {(cpuTemp != null || (loaded && temps !== undefined)) && (
+        <Stat
+          label="Temperatura"
+          value={cpuTemp == null ? (loaded ? 'n/a' : <Skel w={40}/>) : Math.round(cpuTemp)}
+          suffix={cpuTemp == null ? '' : '°C'}
+          sub={
+            temps?.sensors?.length
+              ? temps.sensors.map(s => `${s.label}: ${Math.round(s.celsius)}°`).join(' · ')
+              : (loaded ? 'CPU' : <Skel w={80}/>)
+          }
+          ring={cpuTemp == null ? 0 : Math.min(100, (cpuTemp / 90) * 100)}
+        />
+      )}
       <Stat
         label="Memoria"
-        value={mem ? mem.usedGb : <Skel w={40}/>}
-        suffix={mem ? ' GB' : ''}
-        sub={mem ? `${mem.pct}% di ${mem.totalGb} GB` : (loaded ? 'n/a' : <Skel w={100}/>)}
+        value={memValue}
+        suffix=""
+        sub={memSub}
         ring={mem?.pct ?? 0}
       />
-      <Stat
-        label="Storage"
-        value={disk ? Math.round(disk.pct) : <Skel w={40}/>}
-        suffix={disk ? '%' : ''}
-        sub={disk ? `${disk.usedTb} TB di ${disk.totalTb} TB` : (loaded ? 'n/a' : <Skel w={100}/>)}
-        ring={disk?.pct ?? 0}
-      />
+      {disks.length === 0 && (
+        <Stat
+          label="Storage"
+          value={<Skel w={40}/>}
+          sub={loaded ? 'n/a' : <Skel w={100}/>}
+          ring={0}
+        />
+      )}
+      {disks.map(d => (
+        <Stat
+          key={d.id || d.label}
+          label={d.label || 'Disk'}
+          value={Math.round(d.pct)}
+          suffix="%"
+          sub={`${formatBytes(d.usedBytes)} / ${formatBytes(d.totalBytes)}`}
+          ring={d.pct ?? 0}
+        />
+      ))}
       <div className="stat stat-wide">
         <div className="stat-head">
           <span className="stat-label">Network</span>

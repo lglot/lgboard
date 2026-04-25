@@ -41,7 +41,11 @@
     "enabled": true,
     "hostProc": "/host/proc",
     "hostRoot": "/host/root",
-    "dockerSocket": "/var/run/docker.sock"
+    "hostSys": "/host/sys",
+    "dockerSocket": "/var/run/docker.sock",
+    "disks": [
+      { "id": "rootfs", "label": "rootfs", "path": "/host/root" }
+    ]
   },
   "healthcheck": {
     "enabled": true,

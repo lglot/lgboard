@@ -6,8 +6,17 @@
 #
 # Optional but recommended:
 #   - /proc:/host/proc:ro    -> real CPU / RAM / uptime
+#   - /sys:/host/sys:ro      -> real CPU/GPU temperatures (hwmon)
 #   - /:/host/root:ro,rslave -> real disk usage for the host filesystem
 #   - /var/run/docker.sock:ro -> containers running/total counter
+#
+# To add extra disks, mount them and list them under stats.disks in config.json:
+#   - /mnt/data:/host/data:ro,rslave
+#   then in config.json:
+#     "disks": [
+#       {"id": "rootfs", "label": "rootfs", "path": "/host/root"},
+#       {"id": "data",   "label": "Data",   "path": "/host/data"}
+#     ]
 #
 # If you omit any of the optional mounts, the corresponding stat is simply
 # hidden in the UI (skeleton dims out after first fetch). No fake numbers.
@@ -25,5 +34,6 @@ services:
     volumes:
       - ./lgboard-config:/config
       - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       - /:/host/root:ro,rslave
       - /var/run/docker.sock:/var/run/docker.sock:ro

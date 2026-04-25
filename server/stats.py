@@ -89,9 +89,65 @@ def read_disk(root_path: str = "/host/root") -> dict | None:
         "usedBytes": used,
         "freeBytes": free,
         "pct": round(used / total * 100, 1),
-        "usedTb": round(used / 1e12, 2),
-        "totalTb": round(total / 1e12, 2),
     }
+
+
+def read_disks(disks_cfg: list[dict] | None) -> list[dict]:
+    """Read multiple disks. disks_cfg = [{label, path}]. Skips missing mounts."""
+    if not disks_cfg:
+        return []
+    out: list[dict] = []
+    for entry in disks_cfg:
+        path = entry.get("path")
+        label = entry.get("label") or path or "?"
+        if not path:
+            continue
+        d = read_disk(path)
+        if d is None:
+            continue
+        d["label"] = label
+        d["id"] = entry.get("id") or label.lower().replace(" ", "-")
+        out.append(d)
+    return out
+
+
+def read_temps(sys_path: str = "/host/sys") -> dict | None:
+    """Read temps from /sys/class/hwmon. Returns {sensors: [...], cpuC: float|None}.
+
+    Picks the first CPU-like sensor (k10temp, coretemp, cpu_thermal, zenpower)
+    as cpuC. All sensors are returned in `sensors` for display.
+    """
+    base = Path(sys_path) / "class" / "hwmon"
+    if not base.exists():
+        return None
+    cpu_names = {"k10temp", "coretemp", "cpu_thermal", "zenpower", "it87"}
+    sensors: list[dict] = []
+    cpu_c: float | None = None
+    try:
+        for hwmon in sorted(base.iterdir()):
+            try:
+                name = (hwmon / "name").read_text().strip()
+            except (FileNotFoundError, PermissionError):
+                continue
+            for f in sorted(hwmon.glob("temp*_input")):
+                try:
+                    raw = int(f.read_text().strip())
+                except (FileNotFoundError, PermissionError, ValueError):
+                    continue
+                celsius = round(raw / 1000.0, 1)
+                label_file = f.with_name(f.name.replace("_input", "_label"))
+                try:
+                    label = label_file.read_text().strip()
+                except (FileNotFoundError, PermissionError):
+                    label = name
+                sensors.append({"name": name, "label": label, "celsius": celsius})
+                if cpu_c is None and name in cpu_names:
+                    cpu_c = celsius
+    except (FileNotFoundError, PermissionError):
+        return None
+    if not sensors:
+        return None
+    return {"cpuC": cpu_c, "sensors": sensors}
 
 
 def read_uptime(proc_path: str = "/host/proc") -> float | None:
