@@ -77,3 +77,11 @@ class DockerClient:
             self._cache = result
             self._cache_at = now
         return result
+
+    def list_full(self) -> Optional[list[dict]]:
+        """Raw /containers/json?all=true output, no caching, no transform."""
+        data = self._request("/containers/json?all=true")
+        return data if isinstance(data, list) else None
+
+    def inspect(self, container_id: str) -> Optional[dict]:
+        return self._request(f"/containers/{container_id}/json")  # type: ignore[return-value]

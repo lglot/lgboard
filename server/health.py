@@ -70,11 +70,15 @@ class HealthChecker:
             if a.get("healthcheck") is False:
                 new_snapshot[app_id] = {"status": "unknown", "reason": "disabled"}
                 continue
-            url = a.get("healthUrl") or a.get("url")
+            # Probe priority: explicit healthUrl > internalUrl > public url.
+            # internalUrl bypasses the reverse proxy (Authelia/SWAG), so a
+            # forward-auth 302 doesn't mask a real backend failure.
+            url = a.get("healthUrl") or a.get("internalUrl") or a.get("url")
             if not url or not url.startswith(("http://", "https://")):
                 new_snapshot[app_id] = {"status": "unknown", "reason": "no-url"}
                 continue
             new_snapshot[app_id] = self._probe(url)
+            new_snapshot[app_id]["probedUrl"] = url
         with self._lock:
             self._snapshot = new_snapshot
 

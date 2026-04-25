@@ -63,6 +63,7 @@ const Icons = {
   chevDown: (p) => <Ico {...p}><path d="M6 9l6 6 6-6"/></Ico>,
   thermo:   (p) => <Ico {...p}><path d="M14 14.76V3a2 2 0 1 0-4 0v11.76a4 4 0 1 0 4 0z"/></Ico>,
   hdd:      (p) => <Ico {...p}><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 12h18M7 16h.01M11 16h.01"/></Ico>,
+  github:   (p) => <Ico {...p}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></Ico>,
 };
 
 /* ---------------- FALLBACK MONOGRAM ---------------- */
@@ -150,6 +151,65 @@ function useServerStats(interval = 3000) {
   }, [interval]);
 
   return { stats, loaded, netHistory: history };
+}
+
+/* ---------------- DOCKER DISCOVERY ---------------- */
+function useDiscovery(interval = 60_000) {
+  const [map, setMap] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await fetch('/api/discovery', { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled) setMap(j || {});
+      } catch (e) { /* keep previous */ }
+    };
+    tick();
+    const id = setInterval(tick, interval);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [interval]);
+  return map;
+}
+
+/* ---------------- PLUGINS REGISTRY ---------------- */
+async function loadPluginScript(manifest) {
+  if (!manifest.ui?.module) return;
+  const url = `/_p/${manifest.id}/${manifest.ui.module}?v=${manifest.version || ''}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const src = await res.text();
+    // Compile JSX → JS via Babel-standalone, then inject as a normal script.
+    const compiled = window.Babel.transform(src, { presets: ['react'] }).code;
+    const tag = document.createElement('script');
+    tag.dataset.plugin = manifest.id;
+    tag.textContent = compiled;
+    document.head.appendChild(tag);
+  } catch (e) {
+    console.error('[plugin]', manifest.id, 'load failed', e);
+  }
+}
+
+function usePlugins() {
+  const [manifests, setManifests] = useState([]);
+  const [registry, setRegistry] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/plugins').then(r => r.json()).then(async list => {
+      if (cancelled || !Array.isArray(list)) return;
+      setManifests(list);
+      for (const m of list) {
+        // already loaded? (e.g. hot reload)
+        if (window.__lgboardPlugins?.[m.id]) continue;
+        await loadPluginScript(m);
+      }
+      if (!cancelled) setRegistry({ ...(window.__lgboardPlugins || {}) });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return { manifests, registry };
 }
 
 /* ---------------- HEALTH STATUS ---------------- */
@@ -428,7 +488,58 @@ function dotClass(status) {
   return 'dot-unknown';
 }
 
-function FavCard({ app, health }) {
+async function patchApp(id, patch) {
+  const r = await fetch('/api/apps/' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) throw new Error('PATCH failed: ' + r.status);
+  return r.json();
+}
+
+function PinButton({ app, onChanged, size = 14, className = '' }) {
+  const [busy, setBusy] = useState(false);
+  const isFav = !!app.fav;
+  const click = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      await patchApp(app.id, { fav: !isFav });
+      onChanged && onChanged();
+    } catch (err) {
+      console.error('pin toggle failed', err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      className={`pin-btn ${isFav ? 'on' : ''} ${className}`}
+      onClick={click}
+      aria-pressed={isFav}
+      aria-label={isFav ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+      title={isFav ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+    >
+      <Icons.star size={size} />
+    </button>
+  );
+}
+
+function PluginTileActions({ app, discovery, plugins }) {
+  if (!plugins) return null;
+  const elements = [];
+  Object.values(plugins).forEach(p => {
+    if (!p?.TileAction) return;
+    if (typeof p.match === 'function' && !p.match(app, discovery)) return;
+    const Comp = p.TileAction;
+    elements.push(<Comp key={p.id} app={app} discovery={discovery} />);
+  });
+  return elements.length > 0 ? <div className="tile-actions">{elements}</div> : null;
+}
+
+function FavCard({ app, health, discovery, plugins, onAppsChanged }) {
   const h = health?.[app.id];
   const status = h?.status;
   const lat = h?.latencyMs;
@@ -443,11 +554,13 @@ function FavCard({ app, health }) {
         <span className={`dot ${dotClass(status)}`} title={h ? `${status}${h.httpCode ? ' · HTTP '+h.httpCode : ''}` : 'unknown'} />
         <span className="fav-lat">{lat != null ? `${Math.round(lat)} ms` : '—'}</span>
       </div>
+      <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
+      <PinButton app={app} onChanged={onAppsChanged} className="fav-pin" />
     </a>
   );
 }
 
-function Tile({ app, health }) {
+function Tile({ app, health, discovery, plugins, onAppsChanged }) {
   const status = health?.[app.id]?.status;
   return (
     <a className="tile" href={app.url || '#'} target={resolveTarget(app)} rel="noopener">
@@ -457,6 +570,8 @@ function Tile({ app, health }) {
         <div className="tile-desc">{app.desc}</div>
       </div>
       <span className={`dot ${dotClass(status)}`} title={health?.[app.id] ? `${status}${health[app.id].httpCode ? ' · HTTP '+health[app.id].httpCode : ''}` : 'unknown'} />
+      <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
+      <PinButton app={app} onChanged={onAppsChanged} className="tile-pin" />
     </a>
   );
 }
@@ -684,8 +799,78 @@ function AddServiceModal({ open, onClose, categories, onAdded }) {
   );
 }
 
+/* ---------------- PLUGIN STORE ---------------- */
+function PluginStoreModal({ open, onClose, installed }) {
+  const [registry, setRegistry] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/plugins/registry')
+      .then(r => r.json())
+      .then(j => {
+        if (j.error) setError(j.error);
+        setRegistry(j.items || j || []);
+      })
+      .catch(e => setError(String(e)));
+  }, [open]);
+
+  if (!open) return null;
+  const installedIds = new Set(installed.map(p => p.id));
+  const list = Array.isArray(registry) ? registry : [];
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal modal-store" onClick={e => e.stopPropagation()}>
+        <h3>Plugin Store</h3>
+        <div className="sub">
+          Estensioni opzionali. I plugin core sono già installati e segnati con il badge.
+        </div>
+
+        <div className="store-section">
+          <div className="store-h">Installati</div>
+          {installed.length === 0 && <div className="store-empty">Nessun plugin caricato.</div>}
+          {installed.map(p => (
+            <div className="store-row" key={p.id}>
+              <div className="store-row-body">
+                <div className="store-name">{p.name} <span className="badge">{p.source}</span></div>
+                <div className="store-desc">{p.description || ''}</div>
+                <div className="store-meta mono">v{p.version} · perms: {(p.permissions||[]).join(', ') || '—'}</div>
+              </div>
+              {p.homepage && <a className="qa-btn" href={p.homepage} target="_blank" rel="noopener"><span>Repo</span></a>}
+            </div>
+          ))}
+        </div>
+
+        <div className="store-section">
+          <div className="store-h">Community</div>
+          {error && <div className="shell-error">Registry: {error}</div>}
+          {list.length === 0 && !error && <div className="store-empty">Registry vuoto o non raggiungibile.</div>}
+          {list.map(p => {
+            const have = installedIds.has(p.id);
+            return (
+              <div className="store-row" key={p.id}>
+                <div className="store-row-body">
+                  <div className="store-name">{p.name} {have && <span className="badge">installato</span>}</div>
+                  <div className="store-desc">{p.description || ''}</div>
+                  <div className="store-meta mono">v{p.version} · {p.tags?.join(' · ') || ''}</div>
+                </div>
+                {p.homepage && <a className="qa-btn" href={p.homepage} target="_blank" rel="noopener"><span>Repo</span></a>}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="modal-actions">
+          <button className="qa-btn" onClick={onClose}><span>Chiudi</span></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- TWEAKS PANEL ---------------- */
-function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs }) {
+function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpenStore }) {
   if (!open) return null;
   const set = (k, v) => setPrefs(s => ({ ...s, [k]: v }));
   const themes = themeCfg?.availableThemes || [];
@@ -768,6 +953,13 @@ function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs }) {
             ))}
           </div>
         )}
+
+        <div className="tw-group">
+          <button className="qa-btn primary" style={{width: '100%', justifyContent: 'center'}}
+            onClick={onOpenStore}>
+            <Icons.plus size={14}/><span>Plugin store</span>
+          </button>
+        </div>
       </aside>
     </div>
   );
@@ -797,8 +989,11 @@ function Dashboard({ clientPrefs }) {
   const [cmdOpen, setCmdOpen]     = useState(false);
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [addOpen, setAddOpen]       = useState(false);
+  const [storeOpen, setStoreOpen]   = useState(false);
   const [toast, setToast]           = useState(null);
   const health = useHealthStatus(30_000);
+  const discovery = useDiscovery(60_000);
+  const { manifests: pluginManifests, registry: pluginRegistry } = usePlugins();
 
   const loadConfig = useCallback(async () => {
     try {
@@ -915,7 +1110,7 @@ function Dashboard({ clientPrefs }) {
             <span className="count">{favs.length}</span>
           </div>
           <div className="fav-grid">
-            {favs.map(a => <FavCard key={a.id} app={a} health={health} />)}
+            {favs.map(a => <FavCard key={a.id} app={a} health={health} discovery={discovery} plugins={pluginRegistry} onAppsChanged={loadConfig} />)}
           </div>
         </section>
       )}
@@ -932,7 +1127,7 @@ function Dashboard({ clientPrefs }) {
               <span className="count">{list.length}</span>
             </div>
             <div className="tile-grid">
-              {list.map(a => <Tile key={a.id} app={a} health={health} />)}
+              {list.map(a => <Tile key={a.id} app={a} health={health} discovery={discovery} plugins={pluginRegistry} onAppsChanged={loadConfig} />)}
             </div>
           </section>
         );
@@ -941,9 +1136,15 @@ function Dashboard({ clientPrefs }) {
       {features.showFooter !== false && (
         <footer className="foot">
           <div>{cfg.branding?.title || 'lgboard'} · <span className="mono">{cfg.branding?.subtitle || ''}</span></div>
-          <div>
-            {cfg.branding?.footerText && <span style={{marginRight:12}}>{cfg.branding.footerText}</span>}
-            {features.showCommandPalette !== false && <><kbd>⌘K</kbd> per cercare</>}
+          <div className="foot-right">
+            {cfg.branding?.footerText && <span className="foot-text">{cfg.branding.footerText}</span>}
+            {features.showCommandPalette !== false && <span className="foot-kbd"><kbd>⌘K</kbd> per cercare</span>}
+            <a className="foot-link"
+               href={cfg.branding?.repoUrl || 'https://github.com/lglot/lgboard'}
+               target="_blank" rel="noopener" aria-label="Repository">
+              <Icons.github size={14} />
+              <span>Source</span>
+            </a>
           </div>
         </footer>
       )}
@@ -951,9 +1152,12 @@ function Dashboard({ clientPrefs }) {
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} apps={apps}
         actions={cfg.quickActions || []} onInvoke={invokeAction} />
       <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)}
-        themeCfg={cfg.theme || {}} features={features} prefs={prefs} setPrefs={setPrefs} />
+        themeCfg={cfg.theme || {}} features={features} prefs={prefs} setPrefs={setPrefs}
+        onOpenStore={() => { setTweaksOpen(false); setStoreOpen(true); }} />
       <AddServiceModal open={addOpen} onClose={() => setAddOpen(false)}
         categories={categories} onAdded={loadConfig} />
+      <PluginStoreModal open={storeOpen} onClose={() => setStoreOpen(false)}
+        installed={pluginManifests} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

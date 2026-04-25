@@ -4,7 +4,8 @@
     "subtitle": "yourhost.local",
     "user": "You",
     "monogram": "Y",
-    "footerText": null
+    "footerText": null,
+    "repoUrl": "https://github.com/lglot/lgboard"
   },
   "theme": {
     "mode": "dark",
@@ -34,8 +35,7 @@
   "quickActions": [
     { "id": "add",    "label": "Aggiungi servizio", "icon": "plus",     "action": "modal:add-service", "payload": "",                                 "primary": true },
     { "id": "ssh",    "label": "SSH",               "icon": "terminal", "action": "copy",             "payload": "ssh yourhost" },
-    { "id": "router", "label": "Router",            "icon": "router",   "action": "url",              "payload": "http://192.168.1.1" },
-    { "id": "docs",   "label": "Docs",              "icon": "book",     "action": "url",              "payload": "https://github.com/lglot/lgboard#readme" }
+    { "id": "router", "label": "Router",            "icon": "router",   "action": "url",              "payload": "http://192.168.1.1" }
   ],
   "stats": {
     "enabled": true,

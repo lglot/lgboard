@@ -431,6 +431,121 @@ kbd {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+.pin-btn {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms, color 120ms, background 120ms, border-color 120ms;
+}
+.pin-btn.on { opacity: 1; color: var(--accent); }
+.fav:hover .pin-btn, .tile:hover .pin-btn, .pin-btn:focus-visible { opacity: 1; }
+.pin-btn:hover { color: var(--accent); background: var(--accent-softer); border-color: color-mix(in oklab, var(--accent) 30%, var(--line)); }
+.fav-pin { top: 8px; right: 8px; }
+.tile-pin { top: 4px; right: 4px; width: 20px; height: 20px; }
+
+/* Plugin tile-actions container — sits between dot and pin */
+.tile-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+.tile-action {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: color 120ms, background 120ms, border-color 120ms;
+}
+.tile-action:hover {
+  color: var(--accent);
+  background: var(--accent-softer);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+}
+
+/* Shell modal */
+.modal-shell {
+  width: 960px;
+  max-width: 96vw;
+  height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.shell-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.shell-head h3 {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.shell-head .sub { color: var(--ink-soft); font-size: 11.5px; margin-top: 2px; font-family: var(--ff-mono); }
+.shell-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: oklch(16% 0.012 260);
+}
+.shell-error {
+  padding: 14px 18px;
+  color: var(--down);
+  font-family: var(--ff-mono);
+  font-size: 12.5px;
+}
+
+/* Plugin store modal */
+.modal-store { width: 720px; max-width: 96vw; max-height: 80vh; overflow-y: auto; }
+.store-section { margin: 18px 0; }
+.store-h {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.store-empty { color: var(--ink-soft); font-size: 12.5px; padding: 6px 0; }
+.store-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--bg-elev);
+}
+.store-row-body { flex: 1; min-width: 0; }
+.store-name {
+  font-weight: 500; font-size: 14px; color: var(--ink);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.store-desc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.store-meta { font-size: 10.5px; color: var(--ink-soft); margin-top: 4px; }
+.badge {
+  font-family: var(--ff-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .dot {
   display: inline-block; width: 7px; height: 7px;
   border-radius: 50%; flex: none;
@@ -480,10 +595,25 @@ kbd {
 .foot {
   margin-top: 40px; padding-top: 20px;
   border-top: 1px solid var(--line);
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; align-items: center;
   font-family: var(--ff-mono); font-size: 11px;
   color: var(--ink-soft); letter-spacing: 0.02em;
 }
+.foot-right { display: inline-flex; align-items: center; gap: 14px; }
+.foot-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-mid);
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.foot-link:hover {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+  background: var(--accent-softer);
+}
+.foot-text { color: var(--ink-soft); }
+.foot-kbd { color: var(--ink-soft); }
 .mono { font-family: var(--ff-mono); }
 
 .cmd-scrim {

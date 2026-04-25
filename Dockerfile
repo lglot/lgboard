@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY server/ /app/server/
 COPY public/ /app/public/
+COPY plugins/ /app/plugins/
 
 ENV LGBOARD_PUBLIC=/app/public
 ENV LGBOARD_CONFIG=/config

@@ -1,0 +1,42 @@
+{
+  "id": "ssh",
+  "name": "SSH Console",
+  "version": "0.1.0",
+  "author": "lglot",
+  "description": "Web terminal for whitelisted Docker containers, served as ephemeral ttyd sessions.",
+  "homepage": "https://github.com/lglot/lgboard",
+  "license": "MIT",
+  "lgboardMin": "0.4.0",
+
+  "ui": {
+    "module": "ui.jsx",
+    "tileAction": {
+      "label": "Shell",
+      "icon": "terminal",
+      "match": "container"
+    }
+  },
+
+  "server": {
+    "module": "server",
+    "endpoints": [
+      { "method": "GET",    "path": "/api/_p/ssh/sessions" },
+      { "method": "POST",   "path": "/api/_p/ssh/sessions" },
+      { "method": "DELETE", "path": "/api/_p/ssh/sessions/{sid}" }
+    ]
+  },
+
+  "permissions": ["docker.read", "docker.exec", "docker.spawn"],
+
+  "config": {
+    "type": "object",
+    "properties": {
+      "allowedContainers": { "type": "array", "items": { "type": "string" }, "default": ["*"] },
+      "denyContainers":    { "type": "array", "items": { "type": "string" }, "default": ["dashboard", "swag", "authelia", "cloudflared"] },
+      "ttydImage":         { "type": "string", "default": "tsl0922/ttyd:1.7.7" },
+      "shellCmd":          { "type": "array", "items": { "type": "string" }, "default": ["sh"] },
+      "sessionTtlSeconds": { "type": "integer", "default": 600 },
+      "network":           { "type": "string", "default": "home_server_local" }
+    }
+  }
+}
