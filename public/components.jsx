@@ -60,6 +60,9 @@ const Icons = {
   check:    (p) => <Ico {...p}><path d="M5 12l5 5 9-11"/></Ico>,
   dot:      (p) => <Ico {...p}><circle cx="12" cy="12" r="2" fill="currentColor"/></Ico>,
   link:     (p) => <Ico {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></Ico>,
+  chevDown: (p) => <Ico {...p}><path d="M6 9l6 6 6-6"/></Ico>,
+  thermo:   (p) => <Ico {...p}><path d="M14 14.76V3a2 2 0 1 0-4 0v11.76a4 4 0 1 0 4 0z"/></Ico>,
+  hdd:      (p) => <Ico {...p}><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 12h18M7 16h.01M11 16h.01"/></Ico>,
 };
 
 /* ---------------- FALLBACK MONOGRAM ---------------- */
@@ -241,7 +244,35 @@ function Sparkline({ data, accent = 'var(--accent)' }) {
 /* ---------------- STATS STRIP ---------------- */
 function Skel({ w = 60 }) { return <span className="skeleton" style={{ width: w }}>—</span>; }
 
-function StatsStrip({ hidden }) {
+/* ---------------- STATS LAYOUT KEYS ---------------- */
+const STAT_KEYS = ['cpu','ram','net','temp','containers','uptime','storage'];
+const STAT_LABELS = {
+  cpu: 'CPU', ram: 'Memoria', net: 'Network',
+  temp: 'Temperatura', containers: 'Container', uptime: 'Uptime', storage: 'Storage',
+};
+const HERO_KEYS = ['cpu','ram','net'];
+const PILL_KEYS = ['temp','containers','uptime','storage'];
+
+function DiskBar({ disk }) {
+  const warn = disk.pct >= 85;
+  return (
+    <div className={`disk ${warn ? 'warn' : ''}`}>
+      <div className="disk-head">
+        <span className="disk-name">{disk.label}</span>
+        <span className="disk-figs">
+          <span className="mono">{formatBytes(disk.usedBytes)}</span>
+          <span className="disk-of"> di {formatBytes(disk.totalBytes)}</span>
+        </span>
+        <span className="disk-pct mono">{Math.round(disk.pct)}%</span>
+      </div>
+      <div className="disk-track">
+        <div className="disk-fill" style={{ width: `${disk.pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
   const { stats, loaded, netHistory } = useServerStats(3000);
   if (hidden) return null;
 
@@ -252,83 +283,97 @@ function StatsStrip({ hidden }) {
   const cpuInfo = stats?.cpuInfo;
   const net = stats?.net;
   const containers = stats?.containers;
-  const temps = stats?.temps;
-  const cpuTemp = temps?.cpuC;
+  const cpuTemp = stats?.temps?.cpuC;
 
-  const memSub = mem
-    ? `${mem.pct}% di ${formatBytes(mem.totalBytes)}`
-    : (loaded ? 'n/a' : <Skel w={100}/>);
-  const memValue = mem ? formatBytes(mem.usedBytes) : <Skel w={40}/>;
+  const totalDiskUsed = disks.reduce((a, d) => a + (d.usedBytes || 0), 0);
+  const totalDiskTotal = disks.reduce((a, d) => a + (d.totalBytes || 0), 0);
+  const totalDiskPct = totalDiskTotal ? Math.round((totalDiskUsed / totalDiskTotal) * 100) : 0;
+
+  const heroShown = HERO_KEYS.filter(k => visible[k] !== false);
+  const pillShown = PILL_KEYS.filter(k => visible[k] !== false);
+
+  const pillContent = (k) => {
+    if (k === 'temp') return <><em>TEMP</em><b>{cpuTemp == null ? (loaded ? 'n/a' : '—') : `${Math.round(cpuTemp)}°C`}</b></>;
+    if (k === 'containers') return containers
+      ? <><em>CONTAINER</em><b>{containers.running}<span className="of">/{containers.total}</span></b></>
+      : <><em>CONTAINER</em><b>{loaded ? 'n/a' : '—'}</b></>;
+    if (k === 'uptime') return <><em>UP</em><b>{fmtUptime(up) ?? (loaded ? 'n/a' : '—')}</b></>;
+    if (k === 'storage') return <><em>STORAGE</em><b>{disks.length ? totalDiskPct : 0}%<span className="of"> · {disks.length} vol</span></b></>;
+  };
 
   return (
-    <section className="stats">
-      <Stat
-        label="CPU"
-        value={cpu == null ? <Skel w={40}/> : Math.round(cpu)}
-        suffix={cpu == null ? '' : '%'}
-        sub={cpuInfo ? `${cpuInfo.cores || '?'} core${cpuInfo.ghz ? ` · ${cpuInfo.ghz} GHz` : ''}` : (loaded ? 'n/a' : <Skel w={80}/>)}
-        ring={cpu ?? 0}
-      />
-      {(cpuTemp != null || (loaded && temps !== undefined)) && (
-        <Stat
-          label="Temperatura"
-          value={cpuTemp == null ? (loaded ? 'n/a' : <Skel w={40}/>) : Math.round(cpuTemp)}
-          suffix={cpuTemp == null ? '' : '°C'}
-          sub={
-            temps?.sensors?.length
-              ? temps.sensors.map(s => `${s.label}: ${Math.round(s.celsius)}°`).join(' · ')
-              : (loaded ? 'CPU' : <Skel w={80}/>)
-          }
-          ring={cpuTemp == null ? 0 : Math.min(100, (cpuTemp / 90) * 100)}
-        />
+    <div className="stats-wrap" style={{ '--hero-cols': heroShown.length || 1 }}>
+      {heroShown.length > 0 && (
+        <section className="stats stats-hero">
+          {visible.cpu !== false && (
+            <Stat
+              label="CPU"
+              value={cpu == null ? <Skel w={40}/> : Math.round(cpu)}
+              suffix={cpu == null ? '' : '%'}
+              sub={cpuInfo ? `${cpuInfo.cores || '?'} core${cpuInfo.ghz ? ` · ${cpuInfo.ghz} GHz` : ''}` : (loaded ? 'n/a' : <Skel w={80}/>)}
+              ring={cpu ?? 0}
+            />
+          )}
+          {visible.ram !== false && (
+            <Stat
+              label="Memoria"
+              value={mem ? formatBytes(mem.usedBytes) : <Skel w={40}/>}
+              suffix=""
+              sub={mem ? `${mem.pct}% di ${formatBytes(mem.totalBytes)}` : (loaded ? 'n/a' : <Skel w={100}/>)}
+              ring={mem?.pct ?? 0}
+            />
+          )}
+          {visible.net !== false && (
+            <div className="stat stat-wide">
+              <div className="stat-head">
+                <span className="stat-label">Network</span>
+                <span className="stat-sub">
+                  {net ? <>↓ {net.downMBs} <em>MB/s</em> &nbsp; ↑ {net.upMBs} <em>MB/s</em></> : <Skel w={120}/>}
+                </span>
+              </div>
+              <Sparkline data={netHistory.length ? netHistory : [0,0]} />
+            </div>
+          )}
+        </section>
       )}
-      <Stat
-        label="Memoria"
-        value={memValue}
-        suffix=""
-        sub={memSub}
-        ring={mem?.pct ?? 0}
-      />
-      {disks.length === 0 && (
-        <Stat
-          label="Storage"
-          value={<Skel w={40}/>}
-          sub={loaded ? 'n/a' : <Skel w={100}/>}
-          ring={0}
-        />
-      )}
-      {disks.map(d => (
-        <Stat
-          key={d.id || d.label}
-          label={d.label || 'Disk'}
-          value={Math.round(d.pct)}
-          suffix="%"
-          sub={`${formatBytes(d.usedBytes)} / ${formatBytes(d.totalBytes)}`}
-          ring={d.pct ?? 0}
-        />
-      ))}
-      <div className="stat stat-wide">
-        <div className="stat-head">
-          <span className="stat-label">Network</span>
-          <span className="stat-sub">
-            {net ? <>↓ {net.downMBs} <em>MB/s</em> &nbsp; ↑ {net.upMBs} <em>MB/s</em></> : <Skel w={120}/>}
-          </span>
-        </div>
-        <Sparkline data={netHistory.length ? netHistory : [0,0]} />
-      </div>
-      {containers && (
-        <div className="stat">
-          <div className="stat-head"><span className="stat-label">Container</span></div>
-          <div className="stat-big">{containers.running}<span className="stat-of">/{containers.total}</span></div>
-          <div className="stat-sub">running</div>
+
+      {pillShown.length > 0 && (
+        <div className="pills">
+          {pillShown.map((k, i) => (
+            <React.Fragment key={k}>
+              {i > 0 && <span className="pill-sep" aria-hidden>·</span>}
+              {k === 'storage' && disks.length > 0 ? (
+                <button
+                  className={`pill pill-btn ${storageOpen ? 'on' : ''}`}
+                  onClick={() => setStorageOpen(!storageOpen)}
+                  aria-expanded={storageOpen}
+                >
+                  {pillContent(k)}
+                  <Icons.chevDown size={12} />
+                </button>
+              ) : (
+                <span className="pill">{pillContent(k)}</span>
+              )}
+            </React.Fragment>
+          ))}
         </div>
       )}
-      <div className="stat">
-        <div className="stat-head"><span className="stat-label">Uptime</span></div>
-        <div className="stat-big stat-mono">{fmtUptime(up) ?? <Skel w={60}/>}</div>
-        <div className="stat-sub">host</div>
-      </div>
-    </section>
+
+      {storageOpen && disks.length > 0 && (
+        <section className="storage-drawer">
+          <div className="storage-head">
+            <Icons.hdd size={14} />
+            <span className="stat-label">Storage volumes</span>
+            <span className="storage-sum">
+              {formatBytes(totalDiskUsed)} usato di {formatBytes(totalDiskTotal)}
+            </span>
+          </div>
+          <div className="storage-list">
+            {disks.map(d => <DiskBar key={d.id || d.label} disk={d} />)}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -699,6 +744,25 @@ function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs }) {
             <span>Mostra Quick Actions</span>
           </label>
         </div>
+
+        {(prefs.showStats ?? features.showStats) && (
+          <div className="tw-group">
+            <div className="tw-label">Stats — visibili</div>
+            {STAT_KEYS.map(k => (
+              <label key={k} className="tw-toggle">
+                <input
+                  type="checkbox"
+                  checked={(prefs.statsVisible || {})[k] !== false}
+                  onChange={e => setPrefs(s => ({
+                    ...s,
+                    statsVisible: { ...(s.statsVisible || {}), [k]: e.target.checked }
+                  }))}
+                />
+                <span>{STAT_LABELS[k]}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </aside>
     </div>
   );
@@ -831,7 +895,12 @@ function Dashboard({ clientPrefs }) {
         </div>
       )}
 
-      <StatsStrip hidden={!show('showStats')} />
+      <StatsStrip
+        hidden={!show('showStats')}
+        visible={prefs.statsVisible || {}}
+        storageOpen={!!prefs.storageOpen}
+        setStorageOpen={(v) => setPrefs(p => ({ ...p, storageOpen: v }))}
+      />
 
       {show('showFavs') && favs.length > 0 && (
         <section className="section">
