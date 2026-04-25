@@ -37,7 +37,10 @@ from typing import Optional
 CFG_DEFAULTS = {
     "allowedContainers": ["*"],
     "denyContainers": ["dashboard", "swag", "authelia", "cloudflared"],
-    "ttydImage": "tsl0922/ttyd:1.7.7",
+    # Default helper image is plain alpine — we install ttyd + docker-cli at
+    # session-start time (one-shot, ~3-4 seconds) so we don't have to ship a
+    # custom image. Override with a pre-baked one for instant cold starts.
+    "ttydImage": "alpine:3.20",
     "shellCmd": ["sh"],
     "sessionTtlSeconds": 600,
     "network": "home_server_local",
@@ -93,17 +96,18 @@ def create_session(req):
     sid = secrets.token_urlsafe(8)
     helper_name = f"lgboard-ttyd-{sid}"
     image = cfg["ttydImage"]
-    shell_cmd = cfg["shellCmd"]
+    shell_cmd = " ".join(cfg["shellCmd"])
     network = cfg["network"]
-    # Build cmd: ttyd ... docker exec -it <target> <shell_cmd>
-    cmd = [
-        "--port", "7681",
-        "--once",
-        "--writable",
-        "-t", "fontSize=14",
-        "-t", "theme={\"background\":\"#1a1d2c\"}",
-        "docker", "exec", "-it", target, *shell_cmd,
-    ]
+    # Helper bootstrap: install ttyd + docker-cli (idempotent), then exec ttyd
+    # which itself runs `docker exec` into the target. `exec` replaces the
+    # shell so the container exits when ttyd exits (--once ensures that).
+    bootstrap = (
+        "apk add --no-cache ttyd docker-cli >/dev/null 2>&1; "
+        f"exec ttyd --port 7681 --once --writable "
+        f"-t fontSize=14 -t 'theme={{\"background\":\"#1a1d2c\"}}' "
+        f"docker exec -it {target} {shell_cmd}"
+    )
+    cmd = ["sh", "-c", bootstrap]
     started = _spawn_ttyd(helper_name, image, network, cmd)
     if started.get("error"):
         return 500, started

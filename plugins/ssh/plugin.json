@@ -33,7 +33,7 @@
     "properties": {
       "allowedContainers": { "type": "array", "items": { "type": "string" }, "default": ["*"] },
       "denyContainers":    { "type": "array", "items": { "type": "string" }, "default": ["dashboard", "swag", "authelia", "cloudflared"] },
-      "ttydImage":         { "type": "string", "default": "tsl0922/ttyd:1.7.7" },
+      "ttydImage":         { "type": "string", "default": "alpine:3.20" },
       "shellCmd":          { "type": "array", "items": { "type": "string" }, "default": ["sh"] },
       "sessionTtlSeconds": { "type": "integer", "default": 600 },
       "network":           { "type": "string", "default": "home_server_local" }
