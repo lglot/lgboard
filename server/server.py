@@ -93,14 +93,21 @@ class State:
         def get_apps_with_discovery():
             apps = load_config().get("apps", [])
             # Augment apps with auto-discovered internalUrl when available.
+            # Mark a "_dockerStopped" hint so the health checker can short-circuit
+            # to "down" without sending HTTP probes that the reverse proxy would
+            # gracefully translate into a 302/404 (false "up").
             out = []
             for a in apps:
                 a2 = dict(a) if isinstance(a, dict) else a
-                if isinstance(a2, dict) and not a2.get("internalUrl") and not a2.get("healthUrl"):
-                    discovered = self.discovery.internal_url(a2)
-                    if discovered:
-                        a2["internalUrl"] = discovered
-                        a2["_discovered"] = True
+                if isinstance(a2, dict):
+                    rec = self.discovery.lookup(a2)
+                    if rec is not None and rec.get("state") != "running":
+                        a2["_dockerStopped"] = True
+                    if not a2.get("internalUrl") and not a2.get("healthUrl"):
+                        discovered = self.discovery.internal_url(a2)
+                        if discovered:
+                            a2["internalUrl"] = discovered
+                            a2["_discovered"] = True
                 out.append(a2)
             return out
 

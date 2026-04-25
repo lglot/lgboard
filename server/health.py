@@ -70,6 +70,15 @@ class HealthChecker:
             if a.get("healthcheck") is False:
                 new_snapshot[app_id] = {"status": "unknown", "reason": "disabled"}
                 continue
+            # Container exists but isn't running → don't bother probing the
+            # reverse proxy. The check is authoritative: the workload is down.
+            if a.get("_dockerStopped"):
+                new_snapshot[app_id] = {
+                    "status": "down",
+                    "reason": "container-stopped",
+                    "lastCheckMs": int(time.time() * 1000),
+                }
+                continue
             # Probe priority: explicit healthUrl > internalUrl > public url.
             # internalUrl bypasses the reverse proxy (Authelia/SWAG), so a
             # forward-auth 302 doesn't mask a real backend failure.
