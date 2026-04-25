@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import sys
 import threading
+import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,6 +24,12 @@ from .stats import CPUSampler, NetSampler, read_mem, read_disks, read_uptime, re
 PUBLIC = Path(os.environ.get("LGBOARD_PUBLIC", "/app/public"))
 CONFIG_DIR = Path(os.environ.get("LGBOARD_CONFIG", "/config"))
 PORT = int(os.environ.get("PORT", "8080"))
+
+# Asset version stamp — appended as ?v=<VER> on style.css / components.jsx in
+# index.html. Bumps every container start, defeats edge caches (Cloudflare,
+# SWAG, browser).
+ASSET_VER = os.environ.get("LGBOARD_VERSION") or str(int(time.time()))
+_INDEX_BUST_RE = re.compile(r'(href|src)="(style\.css|components\.jsx)"')
 
 CONFIG_LOCK = threading.Lock()
 
@@ -125,8 +133,27 @@ class Handler(SimpleHTTPRequestHandler):
             self._serve_health()
         elif path == "/api/health/live":
             self.send_json(200, {"ok": True})
+        elif path in ("/", "/index.html"):
+            self._serve_index()
         else:
             super().do_GET()
+
+    def _serve_index(self):
+        try:
+            html = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        except OSError as e:
+            self.send_json(500, {"error": str(e)})
+            return
+        html = _INDEX_BUST_RE.sub(
+            lambda m: f'{m.group(1)}="{m.group(2)}?v={ASSET_VER}"', html
+        )
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self):  # noqa: N802
         if urlparse(self.path).path != "/api/apps":
