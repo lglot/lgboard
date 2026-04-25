@@ -88,12 +88,23 @@ class State:
 STATE: State | None = None
 
 
+_NO_CACHE_EXT = (".html", ".css", ".js", ".jsx", ".json")
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC), **kwargs)
 
     def log_message(self, fmt, *args):
         sys.stdout.write("%s - - %s\n" % (self.address_string(), fmt % args))
+
+    def end_headers(self):
+        # Force browsers (and any reverse proxy honoring origin headers) to
+        # revalidate text assets so deploy bumps land on the next page view.
+        path = urlparse(self.path).path
+        if path == "/" or path.endswith(_NO_CACHE_EXT):
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
+        super().end_headers()
 
     def send_json(self, code: int, payload) -> None:
         body = json.dumps(payload, default=str).encode()
