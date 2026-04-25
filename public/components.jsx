@@ -124,7 +124,9 @@ const resolveTarget = (app) => {
 function useServerStats(interval = 3000) {
   const [stats, setStats]   = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [history, setHistory] = useState(() => Array.from({ length: 32 }, () => 0));
+  const [history, setHistory] = useState(() =>
+    Array.from({ length: 32 }, (_, i) => 1 + Math.sin(i / 3) * 0.4 + Math.cos(i / 5) * 0.2)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +429,9 @@ function dotClass(status) {
 }
 
 function FavCard({ app, health }) {
-  const status = health?.[app.id]?.status;
+  const h = health?.[app.id];
+  const status = h?.status;
+  const lat = h?.latencyMs;
   return (
     <a className="fav" href={app.url || '#'} target={resolveTarget(app)} rel="noopener">
       <div className="fav-icon"><AppIcon app={app} size={28} /></div>
@@ -436,7 +440,8 @@ function FavCard({ app, health }) {
         <div className="fav-desc">{app.desc}</div>
       </div>
       <div className="fav-meta">
-        <span className={`dot ${dotClass(status)}`} title={health?.[app.id] ? `${status}${health[app.id].httpCode ? ' · HTTP '+health[app.id].httpCode : ''}` : 'unknown'} />
+        <span className={`dot ${dotClass(status)}`} title={h ? `${status}${h.httpCode ? ' · HTTP '+h.httpCode : ''}` : 'unknown'} />
+        <span className="fav-lat">{lat != null ? `${Math.round(lat)} ms` : '—'}</span>
       </div>
     </a>
   );
