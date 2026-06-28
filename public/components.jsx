@@ -124,7 +124,8 @@ const resolveTarget = (app) => {
 
 /* ---------------- SERVER STATS (real via /api/stats) ---------------- */
 function useServerStats(interval = 3000) {
-  const [stats, setStats]   = useState(null);
+  const [hosts, setHosts]   = useState([]);
+  const [aggregate, setAgg] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState(() =>
     Array.from({ length: 32 }, (_, i) => 1 + Math.sin(i / 3) * 0.4 + Math.cos(i / 5) * 0.2)
@@ -134,13 +135,23 @@ function useServerStats(interval = 3000) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const r = await fetch('/api/stats', { cache: 'no-store' });
+        const r = await fetch('/api/stats?all=true', { cache: 'no-store' });
         if (!r.ok) throw new Error('http ' + r.status);
         const j = await r.json();
         if (cancelled) return;
-        setStats(j);
+        let hs, agg;
+        if (j && j.allMode && Array.isArray(j.hosts)) {
+          hs = j.hosts;
+          agg = j.stats || null;
+        } else {
+          // backward-compat: old single-host payload
+          hs = [{ id: 'local', name: 'local', isLocal: true, status: 'up', ...j }];
+          agg = null;
+        }
+        setHosts(hs);
+        setAgg(agg);
         setLoaded(true);
-        const down = j?.net?.downMBs ?? 0;
+        const down = hs[0]?.net?.downMBs ?? 0;
         setHistory(h => [...h.slice(1), down]);
       } catch (e) {
         if (!cancelled) setLoaded(true); // stop skeleton, show "n/a"
@@ -151,7 +162,7 @@ function useServerStats(interval = 3000) {
     return () => { cancelled = true; clearInterval(id); };
   }, [interval]);
 
-  return { stats, loaded, netHistory: history };
+  return { hosts, aggregate, loaded, netHistory: history };
 }
 
 /* ---------------- DOCKER DISCOVERY ---------------- */
@@ -336,17 +347,24 @@ function DiskBar({ disk }) {
 }
 
 function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
-  const { stats, loaded, netHistory } = useServerStats(3000);
+  const { hosts, aggregate, loaded, netHistory } = useServerStats(3000);
+  const [hostIdx, setHostIdx] = useState(0);
+  const [containersOpen, setContainersOpen] = useState(false);
+  const [cFilter, setCFilter] = useState('all');
   if (hidden) return null;
 
-  const cpu = stats?.cpu;
-  const mem = stats?.ram;
-  const disks = stats?.disks || (stats?.disk ? [stats.disk] : []);
-  const up = stats?.uptimeSec;
-  const cpuInfo = stats?.cpuInfo;
-  const net = stats?.net;
-  const containers = stats?.containers;
-  const cpuTemp = stats?.temps?.cpuC;
+  const multi = hosts.length > 1;
+  const idx = Math.min(hostIdx, Math.max(0, hosts.length - 1));
+  const host = hosts[idx] || {};
+
+  const cpu = host.cpu;
+  const mem = host.ram;
+  const disks = host.disks || (host.disk ? [host.disk] : []);
+  const up = host.uptimeSec;
+  const cpuInfo = host.cpuInfo;
+  const net = host.net;
+  const containers = host.containers;
+  const cpuTemp = host.temps?.cpuC;
 
   const totalDiskUsed = disks.reduce((a, d) => a + (d.usedBytes || 0), 0);
   const totalDiskTotal = disks.reduce((a, d) => a + (d.totalBytes || 0), 0);
@@ -363,9 +381,29 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
     if (k === 'uptime') return <><em>UP</em><b>{fmtUptime(up) ?? (loaded ? 'n/a' : '—')}</b></>;
     if (k === 'storage') return <><em>STORAGE</em><b>{disks.length ? totalDiskPct : 0}%<span className="of"> · {disks.length} vol</span></b></>;
   };
+  const containersShown = visible.containers !== false;
+  const cHosts = hosts.filter(h => cFilter === 'all' || h.id === cFilter);
 
   return (
     <div className="stats-wrap" style={{ '--hero-cols': heroShown.length || 1 }}>
+      {multi && (
+        <div className="host-tabs" role="tablist" aria-label="Host">
+          {hosts.map((h, i) => (
+            <button
+              key={h.id}
+              role="tab"
+              aria-selected={i === idx}
+              className={`host-tab ${i === idx ? 'on' : ''}`}
+              onClick={() => setHostIdx(i)}
+              title={`${h.name}${h.status ? ' · ' + h.status : ''}`}
+            >
+              <span className={`dot ${dotClass(h.status)}`} aria-hidden />
+              <span className="host-tab-name">{h.name}</span>
+              <span className="host-tab-meta">{h.cpu == null ? '—' : Math.round(h.cpu) + '%'}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {heroShown.length > 0 && (
         <section className="stats stats-hero">
           {visible.cpu !== false && (
@@ -414,6 +452,15 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
                   {pillContent(k)}
                   <Icons.chevDown size={12} />
                 </button>
+              ) : k === 'containers' && containers ? (
+                <button
+                  className={`pill pill-btn ${containersOpen ? 'on' : ''}`}
+                  onClick={() => setContainersOpen(!containersOpen)}
+                  aria-expanded={containersOpen}
+                >
+                  {pillContent(k)}
+                  <Icons.chevDown size={12} />
+                </button>
               ) : (
                 <span className="pill">{pillContent(k)}</span>
               )}
@@ -433,6 +480,48 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
           </div>
           <div className="storage-list">
             {disks.map(d => <DiskBar key={d.id || d.label} disk={d} />)}
+          </div>
+        </section>
+      )}
+
+      {containersOpen && containersShown && (
+        <section className="containers-drawer">
+          <div className="containers-head">
+            <Icons.server size={14} />
+            <span className="stat-label">Container</span>
+            {multi && (
+              <div className="cfilter" role="tablist">
+                <button className={cFilter === 'all' ? 'on' : ''} onClick={() => setCFilter('all')}>Tutti</button>
+                {hosts.map(h => (
+                  <button key={h.id} className={cFilter === h.id ? 'on' : ''} onClick={() => setCFilter(h.id)}>{h.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="containers-groups">
+            {cHosts.map(h => {
+              const items = h.containers?.items || [];
+              return (
+                <div className="chost" key={h.id}>
+                  {multi && (
+                    <div className="chost-head">
+                      <span className={`dot ${dotClass(h.status)}`} aria-hidden />
+                      <span>{h.name}</span>
+                      <span className="of">{h.containers?.running ?? 0}/{h.containers?.total ?? 0}</span>
+                    </div>
+                  )}
+                  <div className="clist">
+                    {items.length ? items.map(c => (
+                      <div className="crow" key={c.name} title={c.image || ''}>
+                        <span className={`dot ${c.state === 'running' ? 'dot-up' : 'dot-idle'}`} aria-hidden />
+                        <span className="cname">{c.name}</span>
+                        <span className="cstate">{c.state}</span>
+                      </div>
+                    )) : <div className="cempty">nessun container</div>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -483,9 +572,10 @@ function QuickActions({ actions, onInvoke }) {
 
 /* ---------------- FAVORITE / TILE CARDS ---------------- */
 function dotClass(status) {
-  if (status === 'up')   return 'dot-up';
-  if (status === 'down') return 'dot-down';
-  if (status === 'idle') return 'dot-idle';
+  if (status === 'up')    return 'dot-up';
+  if (status === 'down')  return 'dot-down';
+  if (status === 'idle')  return 'dot-idle';
+  if (status === 'stale') return 'dot-stale';
   return 'dot-unknown';
 }
 
@@ -499,7 +589,7 @@ async function patchApp(id, patch) {
   return r.json();
 }
 
-function PinButton({ app, onChanged, size = 14, className = '' }) {
+function PinButton({ app, onChanged, size = 18, className = '' }) {
   const [busy, setBusy] = useState(false);
   const isFav = !!app.fav;
   const click = async (e) => {

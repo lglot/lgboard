@@ -39,13 +39,21 @@
   ],
   "stats": {
     "enabled": true,
+    "agentMode": false,
+    "localName": "lgserver",
     "hostProc": "/host/proc",
     "hostRoot": "/host/root",
     "hostSys": "/host/sys",
     "dockerSocket": "/var/run/docker.sock",
     "disks": [
       { "id": "rootfs", "label": "rootfs", "path": "/host/root" }
-    ]
+    ],
+    "remoteHosts": [
+      { "id": "lgcloud", "name": "lgcloud", "url": "http://lgcloud:8080", "token": null }
+    ],
+    "remotePollSeconds": 5,
+    "remoteTimeoutSeconds": 4,
+    "remoteStaleSeconds": 20
   },
   "healthcheck": {
     "enabled": true,
@@ -63,12 +71,23 @@
     {
       "id": "example-media",
       "name": "Jellyfin",
-      "desc": "Media streaming",
+      "desc": "Media streaming (runs on another host)",
       "cat": "media",
       "url": "https://jellyfin.example.com",
+      "healthUrl": "http://192.168.1.50:8096",
       "icon": "jellyfin",
       "fav": true,
       "target": "auto",
+      "healthcheck": true
+    },
+    {
+      "id": "example-auth-gated",
+      "name": "AdGuard Home",
+      "desc": "DNS filtering (public URL behind Authelia)",
+      "cat": "net",
+      "url": "https://adguard.example.com",
+      "internalUrl": "http://adguard:80",
+      "icon": "adguard",
       "healthcheck": true
     },
     {
@@ -81,5 +100,14 @@
       "target": "_self",
       "healthcheck": false
     }
-  ]
+  ],
+  "_fieldDocs": {
+    "apps[].url": "Public link the tile opens. May be auth-gated (Authelia/SWAG) — used as the LAST-RESORT health probe; a redirect to /authelia yields status 'unknown' (auth-gated), never a false 'up'.",
+    "apps[].healthUrl": "Explicit health endpoint, probed directly (bypasses the reverse proxy). Use for services on OTHER hosts, e.g. http://<host-ip>:<port>. Any non-5xx answer (incl. 2xx/3xx/401/403) = up. Highest priority.",
+    "apps[].internalUrl": "Reverse-proxy-bypassing backend URL, e.g. http://<container>:<port>. Auto-discovered from the matched Docker container when absent; set it explicitly to override. Same non-5xx=up rule as healthUrl.",
+    "apps[].healthcheck": "Set false to disable probing → status 'unknown' (disabled).",
+    "stats.agentMode": "When true this node only serves /api/stats (no UI/plugins/health) to be polled by another lgboard via stats.remoteHosts.",
+    "stats.remoteHosts": "Other lgboard agents to aggregate under GET /api/stats?all=true. Each: {id, name, url (base or /api/stats), token?}.",
+    "stats.localName": "Display name for THIS node in the multi-host view."
+  }
 }

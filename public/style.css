@@ -269,6 +269,69 @@ kbd {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 14px 28px;
 }
+
+/* ---- multi-host: host tabs + container drawer ---- */
+.host-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
+.host-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink-mid);
+  font-size: 12.5px; font-weight: 500;
+  cursor: pointer;
+  transition: color 160ms, border-color 160ms, background 160ms, transform 160ms cubic-bezier(0.34,1.4,0.7,1);
+}
+.host-tab:hover { border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); color: var(--ink); }
+.host-tab:active { transform: scale(0.97); }
+.host-tab.on { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
+.host-tab .dot { width: 8px; height: 8px; }
+.host-tab-name { letter-spacing: -0.005em; }
+.host-tab-meta { font-family: var(--ff-mono); font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.host-tab.on .host-tab-meta { color: color-mix(in oklab, var(--accent) 80%, var(--ink)); }
+
+.containers-drawer {
+  border-top: 1px solid var(--line);
+  padding: 16px 20px 18px;
+  background: color-mix(in oklab, var(--accent) 3%, var(--bg-elev));
+  animation: drawerIn 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.containers-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.containers-head svg { color: var(--accent); }
+.cfilter { margin-left: auto; display: inline-flex; gap: 4px; }
+.cfilter button {
+  padding: 4px 10px; background: transparent;
+  border: 1px solid var(--line); border-radius: 7px;
+  color: var(--ink-soft); font-size: 11px; font-weight: 500; cursor: pointer;
+  transition: color 140ms, border-color 140ms, background 140ms;
+}
+.cfilter button:hover { color: var(--ink); }
+.cfilter button.on { color: var(--accent); border-color: var(--accent); background: var(--accent-softer); }
+.containers-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px 28px;
+}
+.chost-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--ink-mid);
+  letter-spacing: 0.01em; margin-bottom: 8px;
+}
+.chost-head .dot { width: 8px; height: 8px; }
+.chost-head .of { margin-left: auto; font-family: var(--ff-mono); font-size: 11px; font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.clist { display: flex; flex-direction: column; gap: 2px; }
+.crow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 7px; font-size: 12.5px;
+  transition: background 140ms;
+}
+.crow:hover { background: color-mix(in oklab, var(--accent) 6%, transparent); }
+.crow .dot { width: 7px; height: 7px; flex: none; }
+.cname { font-family: var(--ff-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.cstate { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.cempty { font-size: 12px; color: var(--ink-soft); padding: 4px 8px; }
+
 .disk { display: flex; flex-direction: column; gap: 6px; }
 .disk-head { display: flex; align-items: baseline; gap: 8px; }
 .disk-name {
@@ -434,21 +497,26 @@ kbd {
 .pin-btn {
   position: absolute;
   top: 6px; right: 6px;
-  width: 24px; height: 24px;
+  width: 30px; height: 30px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--ink-soft);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms, color 120ms, background 120ms, border-color 120ms;
+  transition: opacity 160ms cubic-bezier(0.22,1,0.36,1), color 160ms, background 160ms, border-color 160ms, transform 160ms cubic-bezier(0.34,1.4,0.7,1);
 }
+.pin-btn svg { fill: none; transition: fill 200ms cubic-bezier(0.22,1,0.36,1); }
+/* pinned: star filled + accent, always visible */
 .pin-btn.on { opacity: 1; color: var(--accent); }
+.pin-btn.on svg { fill: var(--accent); }
 .fav:hover .pin-btn, .tile:hover .pin-btn, .pin-btn:focus-visible { opacity: 1; }
 .pin-btn:hover { color: var(--accent); background: var(--accent-softer); border-color: color-mix(in oklab, var(--accent) 30%, var(--line)); }
+.pin-btn:active { transform: scale(0.86); }
+.pin-btn:focus-visible { outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent); outline-offset: 1px; }
 .fav-pin { top: 8px; right: 8px; }
-.tile-pin { top: 4px; right: 4px; width: 20px; height: 20px; }
+.tile-pin { top: 4px; right: 4px; width: 26px; height: 26px; }
 
 /* Plugin tile-actions container — sits between dot and pin */
 .tile-actions {
@@ -554,6 +622,7 @@ kbd {
 .dot-down    { background: var(--down); box-shadow: 0 0 0 3px color-mix(in oklab, var(--down) 18%, transparent); animation: pulse 1.4s infinite; }
 .dot-idle    { background: var(--idle); box-shadow: 0 0 0 3px color-mix(in oklab, var(--idle) 18%, transparent); }
 .dot-unknown { background: color-mix(in oklab, var(--ink-soft) 50%, transparent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ink-soft) 10%, transparent); }
+.dot-stale   { background: oklch(75% 0.12 80); box-shadow: 0 0 0 3px color-mix(in oklab, oklch(75% 0.12 80) 18%, transparent); animation: pulse 2.4s infinite; }
 
 /* skeleton shimmer while /api/stats is still loading */
 .skeleton {
@@ -813,4 +882,13 @@ kbd {
   .stat:nth-child(2n) { border-right: none; }
   .field-row { grid-template-columns: 1fr; }
   .storage-list { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -10,17 +10,19 @@ import json
 import os
 import re
 import shutil
+import socket
 import sys
 import threading
 import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from .discovery import Discovery
 from .docker_api import DockerClient
 from .health import HealthChecker
 from .plugins import HOST as PLUGIN_HOST, PluginRequest
+from .remote_poller import RemoteStatsPoller
 from .stats import CPUSampler, NetSampler, read_mem, read_disks, read_uptime, read_cpuinfo, read_temps
 
 PUBLIC = Path(os.environ.get("LGBOARD_PUBLIC", "/app/public"))
@@ -72,11 +74,53 @@ def save_config(data: dict) -> None:
     tmp.replace(path)
 
 
+def _aggregate_hosts(hosts: list[dict]) -> dict:
+    """Roll up the per-host stats into fleet-wide totals."""
+    total_cpu = 0.0
+    ram_used = 0.0
+    disk_used = 0.0
+    total_containers = 0
+    running_containers = 0
+    hosts_up = 0
+    hosts_down = 0
+    for h in hosts:
+        status = h.get("status")
+        if status == "up":
+            hosts_up += 1
+        elif status == "down":
+            hosts_down += 1
+        # "stale" counts as neither (degraded, data still shown).
+        cpu = h.get("cpu")
+        if isinstance(cpu, (int, float)):
+            total_cpu += cpu
+        ram = h.get("ram")
+        if isinstance(ram, dict) and isinstance(ram.get("usedGb"), (int, float)):
+            ram_used += ram["usedGb"]
+        for d in (h.get("disks") or []):
+            used = d.get("usedBytes") if isinstance(d, dict) else None
+            if isinstance(used, (int, float)):
+                disk_used += used / 1e9
+        containers = h.get("containers")
+        if isinstance(containers, dict):
+            total_containers += containers.get("total") or 0
+            running_containers += containers.get("running") or 0
+    return {
+        "totalCpuPercent": round(total_cpu, 1),
+        "totalRamUsedGb": round(ram_used, 2),
+        "totalDiskUsedGb": round(disk_used, 2),
+        "totalContainers": total_containers,
+        "runningContainers": running_containers,
+        "hostsUp": hosts_up,
+        "hostsDown": hosts_down,
+    }
+
+
 class State:
     """Shared singletons across handler threads."""
 
     def __init__(self, cfg: dict):
         stats_cfg = cfg.get("stats", {})
+        self.agent_mode = bool(stats_cfg.get("agentMode"))
         self.cpu = CPUSampler(stats_cfg.get("hostProc", "/host/proc"))
         self.net = NetSampler(stats_cfg.get("hostProc", "/host/proc"))
         self.docker = DockerClient(stats_cfg.get("dockerSocket", "/var/run/docker.sock"))
@@ -88,26 +132,39 @@ class State:
         self.disks_cfg = stats_cfg.get("disks") or [
             {"id": "rootfs", "label": "rootfs", "path": host_root}
         ]
+        # Display name for this node in the multi-host (?all=true) view.
+        self.local_name = (
+            stats_cfg.get("localName")
+            or cfg.get("branding", {}).get("subtitle")
+            or socket.gethostname()
+        )
         hc_cfg = cfg.get("healthcheck", {})
+        user_agent = hc_cfg.get("userAgent", "lgboard-health/1.0")
 
         def get_apps_with_discovery():
             apps = load_config().get("apps", [])
-            # Augment apps with auto-discovered internalUrl when available.
-            # Mark a "_dockerStopped" hint so the health checker can short-circuit
-            # to "down" without sending HTTP probes that the reverse proxy would
-            # gracefully translate into a 302/404 (false "up").
+            # Augment apps with discovery hints the health checker uses to pick a
+            # probe strategy: a reverse-proxy-bypassing internalUrl, plus the
+            # matched container's presence/state.
             out = []
             for a in apps:
-                a2 = dict(a) if isinstance(a, dict) else a
-                if isinstance(a2, dict):
-                    rec = self.discovery.lookup(a2)
-                    if rec is not None and rec.get("state") != "running":
-                        a2["_dockerStopped"] = True
-                    if not a2.get("internalUrl") and not a2.get("healthUrl"):
-                        discovered = self.discovery.internal_url(a2)
-                        if discovered:
-                            a2["internalUrl"] = discovered
-                            a2["_discovered"] = True
+                if not isinstance(a, dict):
+                    out.append(a)
+                    continue
+                a2 = dict(a)
+                rec = self.discovery.lookup(a2)
+                if rec is not None:
+                    a2["_containerMatched"] = True
+                    a2["_containerState"] = rec.get("state")
+                # Auto-discover an internalUrl whenever no explicit healthUrl is
+                # set. A manually-configured public `url` must NOT block this:
+                # probing the public URL traverses Authelia and yields ambiguous
+                # 302s. An explicit internalUrl is preserved (never overwritten).
+                if not a2.get("healthUrl") and not a2.get("internalUrl"):
+                    discovered = self.discovery.internal_url(a2)
+                    if discovered:
+                        a2["internalUrl"] = discovered
+                        a2["_discovered"] = True
                 out.append(a2)
             return out
 
@@ -115,10 +172,64 @@ class State:
             get_apps=get_apps_with_discovery,
             interval=hc_cfg.get("intervalSeconds", 30),
             timeout=hc_cfg.get("timeoutSeconds", 5),
-            user_agent=hc_cfg.get("userAgent", "lgboard-health/1.0"),
+            user_agent=user_agent,
         )
-        if hc_cfg.get("enabled", True):
+
+        # Multi-host stats: poll remote agents over the tailnet. Skipped in agent
+        # mode (a leaf node is polled, it doesn't poll others).
+        self.remote_poller: RemoteStatsPoller | None = None
+        remote_hosts = stats_cfg.get("remoteHosts") or []
+        if remote_hosts and not self.agent_mode:
+            self.remote_poller = RemoteStatsPoller(
+                hosts=remote_hosts,
+                interval=stats_cfg.get("remotePollSeconds", 5),
+                timeout=stats_cfg.get("remoteTimeoutSeconds", 4),
+                stale_after=stats_cfg.get("remoteStaleSeconds", 20),
+                user_agent=user_agent,
+            )
+            self.remote_poller.start()
+
+        if not self.agent_mode and hc_cfg.get("enabled", True):
             self.health.start()
+
+    def stop(self) -> None:
+        self.health.stop()
+        if self.remote_poller is not None:
+            self.remote_poller.stop()
+
+    # --- stats builders (shared by single-host + multi-host endpoints) ---
+
+    def build_local_stats(self) -> dict:
+        """The single-host /api/stats payload (backward-compatible shape)."""
+        disks = read_disks(self.disks_cfg)
+        return {
+            "cpu": self.cpu.sample(),
+            "cpuInfo": read_cpuinfo(self.host_proc),
+            "ram": read_mem(self.host_proc),
+            "disks": disks,
+            "disk": disks[0] if disks else None,  # legacy single-disk shape
+            "uptimeSec": read_uptime(self.host_proc),
+            "net": self.net.sample(),
+            "containers": self.docker.containers(),
+            "temps": read_temps(self.host_sys),
+            "timestamp": int(time.time() * 1000),
+        }
+
+    def build_all_stats(self) -> dict:
+        """Aggregated local + remote payload for /api/stats?all=true."""
+        local = self.build_local_stats()
+        local_host = {"id": "local", "name": self.local_name, "isLocal": True, "status": "up"}
+        for k in ("cpu", "cpuInfo", "ram", "disks", "disk", "net", "uptimeSec", "temps", "containers"):
+            local_host[k] = local.get(k)
+        hosts = [local_host]
+        if self.remote_poller is not None:
+            hosts.extend(self.remote_poller.hosts_snapshot())
+        return {
+            "allMode": True,
+            "timestamp": int(time.time() * 1000),
+            "hosts": hosts,
+            "stats": _aggregate_hosts(hosts),
+        }
 
 
 STATE: State | None = None
@@ -151,8 +262,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _agent_blocked(self) -> bool:
+        """In agent mode only /api/stats (+ liveness) are served; gate the rest."""
+        return STATE is not None and STATE.agent_mode
+
     def do_GET(self):  # noqa: N802
         path = urlparse(self.path).path
+        if self._agent_blocked():
+            if path == "/api/stats":
+                self._serve_stats()
+            elif path == "/api/health/live":
+                self.send_json(200, {"ok": True})
+            else:
+                self.send_json(404, {"error": "agent mode: only /api/stats is served"})
+            return
         if path == "/config.json":
             self._serve_config()
         elif path == "/api/stats":
@@ -300,6 +423,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):  # noqa: N802
+        if self._agent_blocked():
+            self.send_json(404, {"error": "agent mode: only /api/stats is served"})
+            return
         path = urlparse(self.path).path
         if path != "/api/apps":
             if self._maybe_dispatch_plugin("POST", path):
@@ -328,6 +454,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(200, {"ok": True, "id": entry_id})
 
     def do_PATCH(self):  # noqa: N802
+        if self._agent_blocked():
+            self.send_json(404, {"error": "agent mode: only /api/stats is served"})
+            return
         path = urlparse(self.path).path
         prefix = "/api/apps/"
         if not path.startswith(prefix):
@@ -365,6 +494,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(200, {"ok": True, "id": target, "fav": entry.get("fav", False)})
 
     def do_DELETE(self):  # noqa: N802
+        if self._agent_blocked():
+            self.send_json(404, {"error": "agent mode: only /api/stats is served"})
+            return
         path = urlparse(self.path).path
         prefix = "/api/apps/"
         if path.startswith(prefix):
@@ -392,27 +524,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _serve_stats(self):
         assert STATE is not None
-        cpu = STATE.cpu.sample()
-        mem = read_mem(STATE.host_proc)
-        disks = read_disks(STATE.disks_cfg)
-        uptime = read_uptime(STATE.host_proc)
-        cpuinfo = read_cpuinfo(STATE.host_proc)
-        net = STATE.net.sample()
-        containers = STATE.docker.containers()
-        temps = read_temps(STATE.host_sys)
-        payload = {
-            "cpu": cpu,
-            "cpuInfo": cpuinfo,
-            "ram": mem,
-            "disks": disks,
-            "disk": disks[0] if disks else None,  # legacy single-disk shape
-            "uptimeSec": uptime,
-            "net": net,
-            "containers": containers,
-            "temps": temps,
-            "timestamp": int(__import__("time").time() * 1000),
-        }
-        self.send_json(200, payload)
+        params = parse_qs(urlparse(self.path).query)
+        want_all = (params.get("all", ["false"])[0] or "").lower() in ("1", "true", "yes")
+        # Multi-host aggregation is only meaningful on a non-agent node.
+        if want_all and not STATE.agent_mode:
+            self.send_json(200, STATE.build_all_stats())
+            return
+        self.send_json(200, STATE.build_local_stats())
 
     def _serve_health(self):
         assert STATE is not None
@@ -421,22 +539,32 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     global STATE
-    bootstrap_config()
+    # Read config first so agent mode can short-circuit the bootstrap. In agent
+    # mode the node is a stats-only leaf: no UI seed, no plugins, no health.
     cfg = load_config()
+    agent_mode = bool(cfg.get("stats", {}).get("agentMode"))
+    if not agent_mode:
+        bootstrap_config()
+        cfg = load_config()
     STATE = State(cfg)
-    PLUGIN_HOST.attach(STATE.docker, STATE.discovery)
-    PLUGIN_HOST.load_all()
+    if not agent_mode:
+        PLUGIN_HOST.attach(STATE.docker, STATE.discovery)
+        PLUGIN_HOST.load_all()
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"[lgboard] serving {PUBLIC} on :{PORT}, config={config_path()}", flush=True)
-    print(f"[lgboard] plugins loaded: {[m['id'] for m in PLUGIN_HOST.list_manifests()]}", flush=True)
+    if agent_mode:
+        print(f"[lgboard] agent mode: serving /api/stats only on :{PORT}", flush=True)
+    else:
+        print(f"[lgboard] serving {PUBLIC} on :{PORT}, config={config_path()}", flush=True)
+        print(f"[lgboard] plugins loaded: {[m['id'] for m in PLUGIN_HOST.list_manifests()]}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        PLUGIN_HOST.shutdown()
+        if not agent_mode:
+            PLUGIN_HOST.shutdown()
         if STATE is not None:
-            STATE.health.stop()
+            STATE.stop()
 
 
 if __name__ == "__main__":
