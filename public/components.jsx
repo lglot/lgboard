@@ -34,6 +34,7 @@ const Icons = {
   cloud:    (p) => <Ico {...p}><path d="M17.5 19a4.5 4.5 0 1 0-1-8.9 6 6 0 0 0-11.5 2.4A4 4 0 0 0 6 19h11.5z"/></Ico>,
   database: (p) => <Ico {...p}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.5 3.5 3 8 3s8-1.5 8-3V5"/><path d="M4 11v6c0 1.5 3.5 3 8 3s8-1.5 8-3v-6"/></Ico>,
   shield:   (p) => <Ico {...p}><path d="M12 2l8 3v7c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z"/></Ico>,
+  users:    (p) => <Ico {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></Ico>,
   file:     (p) => <Ico {...p}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></Ico>,
   terminal: (p) => <Ico {...p}><path d="M4 17l6-6-6-6M12 19h8"/></Ico>,
   activity: (p) => <Ico {...p}><path d="M22 12h-4l-3 9-6-18-3 9H2"/></Ico>,
