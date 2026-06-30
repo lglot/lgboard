@@ -29,11 +29,10 @@ PUBLIC = Path(os.environ.get("LGBOARD_PUBLIC", "/app/public"))
 CONFIG_DIR = Path(os.environ.get("LGBOARD_CONFIG", "/config"))
 PORT = int(os.environ.get("PORT", "8080"))
 
-# Asset version stamp — appended as ?v=<VER> on style.css / components.jsx in
-# index.html. Bumps every container start, defeats edge caches (Cloudflare,
-# SWAG, browser).
+# Asset version stamp — appended as ?v=<VER> on style.css / *.jsx in index.html.
+# Bumps every container start, defeats edge caches (Cloudflare, SWAG, browser).
 ASSET_VER = os.environ.get("LGBOARD_VERSION") or str(int(time.time()))
-_INDEX_BUST_RE = re.compile(r'(href|src)="(style\.css|components\.jsx)"')
+_INDEX_BUST_RE = re.compile(r'(href|src)="(style\.css|icons\.jsx|themes\.jsx|components\.jsx)"')
 
 CONFIG_LOCK = threading.Lock()
 

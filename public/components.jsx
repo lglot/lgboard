@@ -1,100 +1,18 @@
 // lgboard — dashboard components
 // Zero bundler, runs from /vendor React + Babel-standalone.
+// Icons/AppIcon/Monogram come from icons.jsx; the theme system (THEMES,
+// resolveTheme, applyThemeVars, ThemeGroupedGrid, ThemeGalleryModal, …) from
+// themes.jsx. Both are loaded first and exported on window.
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
-
-/* ---------------- ICONS ---------------- */
-const Ico = ({ d, children, size = 22 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    {d ? <path d={d} /> : children}
-  </svg>
-);
-
-const Icons = {
-  jellyfin: (p) => <Ico {...p}><path d="M12 3L4 18h16L12 3z"/><path d="M12 9L8.5 15h7L12 9z"/></Ico>,
-  telegram: (p) => <Ico {...p}><path d="M21 4L2.5 11.5l6 2.5 2 6L21 4z"/><path d="M8.5 14l12.5-10-9 11"/></Ico>,
-  lidarr:   (p) => <Ico {...p}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="0.5" fill="currentColor"/></Ico>,
-  sonarr:   (p) => <Ico {...p}><path d="M12 2l2.5 4.5L19 4l-1 5 5 1-4.5 2.5L22 17l-5-1-1 5-2.5-4.5L9 20l1-5-5-1 4.5-2.5L6 7l5 1 1-5z"/></Ico>,
-  radarr:   (p) => <Ico {...p}><path d="M5 3l14 9-14 9V3z"/></Ico>,
-  bazarr:   (p) => <Ico {...p}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 13h3M7 16h5M14 13h3M12 16h5"/></Ico>,
-  prowlarr: (p) => <Ico {...p}><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></Ico>,
-  gotify:   (p) => <Ico {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></Ico>,
-  adguard:  (p) => <Ico {...p}><path d="M12 2L4 5v7c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V5l-8-3z"/><path d="m9 12 2 2 4-4"/></Ico>,
-  qbittorrent: (p) => <Ico {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8 13l4 4 4-4"/></Ico>,
-  jackett:  (p) => <Ico {...p}><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 3v18M16 3v18M4 9h16M4 15h16"/></Ico>,
-  home:     (p) => <Ico {...p}><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V10z"/></Ico>,
-  portainer:(p) => <Ico {...p}><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></Ico>,
-  adminer:  (p) => <Ico {...p}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.5 3.5 3 8 3s8-1.5 8-3V5"/><path d="M4 11v6c0 1.5 3.5 3 8 3s8-1.5 8-3v-6"/></Ico>,
-  dozzle:   (p) => <Ico {...p}><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/></Ico>,
-  cockpit:  (p) => <Ico {...p}><path d="M12 2L3 7l9 5 9-5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></Ico>,
-  router:   (p) => <Ico {...p}><rect x="3" y="13" width="18" height="7" rx="1"/><path d="M7 17h.01M11 17h.01M6 13V9a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v4"/></Ico>,
-  router2:  (p) => <Ico {...p}><rect x="3" y="13" width="18" height="7" rx="1"/><path d="M7 17h.01M11 17h.01M15 17h.01M9 13V3M12 13V5M15 13V3"/></Ico>,
-  printer:  (p) => <Ico {...p}><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1"/><rect x="6" y="14" width="12" height="7"/></Ico>,
-  cloud:    (p) => <Ico {...p}><path d="M17.5 19a4.5 4.5 0 1 0-1-8.9 6 6 0 0 0-11.5 2.4A4 4 0 0 0 6 19h11.5z"/></Ico>,
-  database: (p) => <Ico {...p}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.5 3.5 3 8 3s8-1.5 8-3V5"/><path d="M4 11v6c0 1.5 3.5 3 8 3s8-1.5 8-3v-6"/></Ico>,
-  shield:   (p) => <Ico {...p}><path d="M12 2l8 3v7c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z"/></Ico>,
-  users:    (p) => <Ico {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></Ico>,
-  file:     (p) => <Ico {...p}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></Ico>,
-  terminal: (p) => <Ico {...p}><path d="M4 17l6-6-6-6M12 19h8"/></Ico>,
-  activity: (p) => <Ico {...p}><path d="M22 12h-4l-3 9-6-18-3 9H2"/></Ico>,
-  camera:   (p) => <Ico {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Ico>,
-  music:    (p) => <Ico {...p}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></Ico>,
-  book:     (p) => <Ico {...p}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></Ico>,
-  git:      (p) => <Ico {...p}><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="12" r="2"/><path d="M5 8v8M7 12h10M17 12a4 4 0 0 0-4-4H5"/></Ico>,
-  calendar: (p) => <Ico {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></Ico>,
-  media:    (p) => <Ico {...p}><path d="M3 18v-1a9 9 0 0 1 18 0v1"/><rect x="2" y="13" width="5" height="7" rx="1"/><rect x="17" y="13" width="5" height="7" rx="1"/></Ico>,
-  tools:    (p) => <Ico {...p}><path d="M14 4l6 6-4 4-6-6 4-4zM10 10l-7 7v4h4l7-7"/></Ico>,
-  server:   (p) => <Ico {...p}><rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/><path d="M7 7.5h.01M7 16.5h.01"/></Ico>,
-  devices:  (p) => <Ico {...p}><rect x="3" y="4" width="13" height="10" rx="1"/><rect x="14" y="9" width="7" height="11" rx="1"/><path d="M8 20h4"/></Ico>,
-  star:     (p) => <Ico {...p}><path d="M12 2l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-7z"/></Ico>,
-  search:   (p) => <Ico {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Ico>,
-  sun:      (p) => <Ico {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></Ico>,
-  moon:     (p) => <Ico {...p}><path d="M20 14A8 8 0 1 1 10 4a7 7 0 0 0 10 10z"/></Ico>,
-  sliders:  (p) => <Ico {...p}><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h14M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/></Ico>,
-  power:    (p) => <Ico {...p}><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></Ico>,
-  refresh:  (p) => <Ico {...p}><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></Ico>,
-  close:    (p) => <Ico {...p}><path d="M6 6l12 12M18 6L6 18"/></Ico>,
-  arrowReturn: (p) => <Ico {...p}><path d="M9 14l-4-4 4-4M5 10h10a4 4 0 0 1 4 4v3"/></Ico>,
-  plus:     (p) => <Ico {...p}><path d="M12 5v14M5 12h14"/></Ico>,
-  copy:     (p) => <Ico {...p}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></Ico>,
-  check:    (p) => <Ico {...p}><path d="M5 12l5 5 9-11"/></Ico>,
-  dot:      (p) => <Ico {...p}><circle cx="12" cy="12" r="2" fill="currentColor"/></Ico>,
-  link:     (p) => <Ico {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></Ico>,
-  chevDown: (p) => <Ico {...p}><path d="M6 9l6 6 6-6"/></Ico>,
-  thermo:   (p) => <Ico {...p}><path d="M14 14.76V3a2 2 0 1 0-4 0v11.76a4 4 0 1 0 4 0z"/></Ico>,
-  hdd:      (p) => <Ico {...p}><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 12h18M7 16h.01M11 16h.01"/></Ico>,
-  github:   (p) => <Ico {...p}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></Ico>,
-};
-
-/* ---------------- FALLBACK MONOGRAM ---------------- */
-function Monogram({ name, size = 22 }) {
-  const initials = (name || '?').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
-  const fs = size <= 20 ? 11 : size <= 28 ? 14 : 18;
-  return (
-    <span style={{
-      width: size, height: size,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--ff-display)', fontWeight: 600,
-      fontSize: fs, letterSpacing: '-0.02em', color: 'currentColor',
-    }}>{initials}</span>
-  );
-}
-
-function AppIcon({ app, size = 22 }) {
-  if (app.iconSvgPath) return <Ico d={app.iconSvgPath} size={size} />;
-  const key = app.icon || app.id;
-  if (key && Icons[key]) { const I = Icons[key]; return <I size={size} />; }
-  return <Monogram name={app.name} size={size} />;
-}
 
 /* ---------------- HELPERS ---------------- */
 const greeting = (d = new Date()) => {
   const h = d.getHours();
-  if (h < 5)  return 'Buonanotte';
-  if (h < 12) return 'Buongiorno';
-  if (h < 18) return 'Buon pomeriggio';
-  return 'Buonasera';
+  if (h < 5)  return 'Good night';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
 };
 const fmtClock = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDate  = (d) => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
@@ -121,6 +39,14 @@ const resolveTarget = (app) => {
   if (app.target === '_self' || app.target === '_blank') return app.target;
   return /^https?:\/\//i.test(app.url || '') ? '_blank' : '_self';
 };
+
+function dotClass(status) {
+  if (status === 'up')    return 'dot-up';
+  if (status === 'down')  return 'dot-down';
+  if (status === 'idle')  return 'dot-idle';
+  if (status === 'stale') return 'dot-stale';
+  return 'dot-unknown';
+}
 
 /* ---------------- SERVER STATS (real via /api/stats) ---------------- */
 function useServerStats(interval = 3000) {
@@ -245,7 +171,7 @@ function useHealthStatus(interval = 30_000) {
 }
 
 /* ---------------- HEADER ---------------- */
-function Header({ branding, onOpenSearch, onOpenTweaks, mode, setMode, showGreeting, showCommandPalette }) {
+function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setMode, showGreeting, showCommandPalette }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -276,17 +202,19 @@ function Header({ branding, onOpenSearch, onOpenTweaks, mode, setMode, showGreet
 
       <div className="hdr-right">
         {showCommandPalette !== false && (
-          <button className="searchbtn" onClick={onOpenSearch} aria-label="Apri command palette">
+          <button className="searchbtn" onClick={onOpenSearch} aria-label="Open command palette">
             <Icons.search size={16} />
-            <span>Cerca app, esegui comandi…</span>
+            <span>Search apps, run commands…</span>
             <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd>
           </button>
         )}
-        <button className="iconbtn" onClick={() => setMode(dark ? 'light' : 'dark')} aria-label="Toggle tema">
+        <button className="iconbtn" onClick={() => setMode(dark ? 'light' : 'dark')} aria-label="Toggle theme">
           {dark ? <Icons.sun size={18} /> : <Icons.moon size={18} />}
         </button>
-        <button className="iconbtn" onClick={onOpenTweaks} aria-label="Impostazioni">
-          <Icons.sliders size={18} />
+        <button className={`iconbtn ${tweaksOpen ? 'on' : ''}`} onClick={onToggleTweaks}
+          aria-label={tweaksOpen ? 'Close settings' : 'Open settings'} aria-pressed={tweaksOpen}
+          title={tweaksOpen ? 'Close Tweaks' : 'Open Tweaks'}>
+          {tweaksOpen ? <Icons.panelCloseRight size={18} /> : <Icons.panelOpenRight size={18} />}
         </button>
       </div>
     </header>
@@ -318,11 +246,10 @@ function Sparkline({ data, accent = 'var(--accent)' }) {
 /* ---------------- STATS STRIP ---------------- */
 function Skel({ w = 60 }) { return <span className="skeleton" style={{ width: w }}>—</span>; }
 
-/* ---------------- STATS LAYOUT KEYS ---------------- */
 const STAT_KEYS = ['cpu','ram','net','temp','containers','uptime','storage'];
 const STAT_LABELS = {
-  cpu: 'CPU', ram: 'Memoria', net: 'Network',
-  temp: 'Temperatura', containers: 'Container', uptime: 'Uptime', storage: 'Storage',
+  cpu: 'CPU', ram: 'Memory', net: 'Network',
+  temp: 'Temperature', containers: 'Containers', uptime: 'Uptime', storage: 'Storage',
 };
 const HERO_KEYS = ['cpu','ram','net'];
 const PILL_KEYS = ['temp','containers','uptime','storage'];
@@ -335,7 +262,7 @@ function DiskBar({ disk }) {
         <span className="disk-name">{disk.label}</span>
         <span className="disk-figs">
           <span className="mono">{formatBytes(disk.usedBytes)}</span>
-          <span className="disk-of"> di {formatBytes(disk.totalBytes)}</span>
+          <span className="disk-of"> of {formatBytes(disk.totalBytes)}</span>
         </span>
         <span className="disk-pct mono">{Math.round(disk.pct)}%</span>
       </div>
@@ -347,7 +274,7 @@ function DiskBar({ disk }) {
 }
 
 function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
-  const { hosts, aggregate, loaded, netHistory } = useServerStats(3000);
+  const { hosts, loaded, netHistory } = useServerStats(3000);
   const [hostIdx, setHostIdx] = useState(0);
   const [containersOpen, setContainersOpen] = useState(false);
   const [cFilter, setCFilter] = useState('all');
@@ -376,8 +303,8 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
   const pillContent = (k) => {
     if (k === 'temp') return <><em>TEMP</em><b>{cpuTemp == null ? (loaded ? 'n/a' : '—') : `${Math.round(cpuTemp)}°C`}</b></>;
     if (k === 'containers') return containers
-      ? <><em>CONTAINER</em><b>{containers.running}<span className="of">/{containers.total}</span></b></>
-      : <><em>CONTAINER</em><b>{loaded ? 'n/a' : '—'}</b></>;
+      ? <><em>CONTAINERS</em><b>{containers.running}<span className="of">/{containers.total}</span></b></>
+      : <><em>CONTAINERS</em><b>{loaded ? 'n/a' : '—'}</b></>;
     if (k === 'uptime') return <><em>UP</em><b>{fmtUptime(up) ?? (loaded ? 'n/a' : '—')}</b></>;
     if (k === 'storage') return <><em>STORAGE</em><b>{disks.length ? totalDiskPct : 0}%<span className="of"> · {disks.length} vol</span></b></>;
   };
@@ -417,10 +344,10 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
           )}
           {visible.ram !== false && (
             <Stat
-              label="Memoria"
+              label="Memory"
               value={mem ? formatBytes(mem.usedBytes) : <Skel w={40}/>}
               suffix=""
-              sub={mem ? `${mem.pct}% di ${formatBytes(mem.totalBytes)}` : (loaded ? 'n/a' : <Skel w={100}/>)}
+              sub={mem ? `${mem.pct}% of ${formatBytes(mem.totalBytes)}` : (loaded ? 'n/a' : <Skel w={100}/>)}
               ring={mem?.pct ?? 0}
             />
           )}
@@ -475,7 +402,7 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
             <Icons.hdd size={14} />
             <span className="stat-label">Storage volumes</span>
             <span className="storage-sum">
-              {formatBytes(totalDiskUsed)} usato di {formatBytes(totalDiskTotal)}
+              {formatBytes(totalDiskUsed)} used of {formatBytes(totalDiskTotal)}
             </span>
           </div>
           <div className="storage-list">
@@ -488,10 +415,10 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
         <section className="containers-drawer">
           <div className="containers-head">
             <Icons.server size={14} />
-            <span className="stat-label">Container</span>
+            <span className="stat-label">Containers</span>
             {multi && (
               <div className="cfilter" role="tablist">
-                <button className={cFilter === 'all' ? 'on' : ''} onClick={() => setCFilter('all')}>Tutti</button>
+                <button className={cFilter === 'all' ? 'on' : ''} onClick={() => setCFilter('all')}>All</button>
                 {hosts.map(h => (
                   <button key={h.id} className={cFilter === h.id ? 'on' : ''} onClick={() => setCFilter(h.id)}>{h.name}</button>
                 ))}
@@ -517,7 +444,7 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
                         <span className="cname">{c.name}</span>
                         <span className="cstate">{c.state}</span>
                       </div>
-                    )) : <div className="cempty">nessun container</div>}
+                    )) : <div className="cempty">no containers</div>}
                   </div>
                 </div>
               );
@@ -571,14 +498,6 @@ function QuickActions({ actions, onInvoke }) {
 }
 
 /* ---------------- FAVORITE / TILE CARDS ---------------- */
-function dotClass(status) {
-  if (status === 'up')    return 'dot-up';
-  if (status === 'down')  return 'dot-down';
-  if (status === 'idle')  return 'dot-idle';
-  if (status === 'stale') return 'dot-stale';
-  return 'dot-unknown';
-}
-
 async function patchApp(id, patch) {
   const r = await fetch('/api/apps/' + encodeURIComponent(id), {
     method: 'PATCH',
@@ -610,8 +529,8 @@ function PinButton({ app, onChanged, size = 18, className = '' }) {
       className={`pin-btn ${isFav ? 'on' : ''} ${className}`}
       onClick={click}
       aria-pressed={isFav}
-      aria-label={isFav ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-      title={isFav ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+      aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+      title={isFav ? 'Remove from favorites' : 'Add to favorites'}
     >
       <Icons.star size={size} />
     </button>
@@ -630,10 +549,35 @@ function PluginTileActions({ app, discovery, plugins }) {
   return elements.length > 0 ? <div className="tile-actions">{elements}</div> : null;
 }
 
+// Status badge — one cohesive pill (dot + latency/state), decoupled from the pin.
+function statusText(h) {
+  if (h && h.latencyMs != null) return `${Math.round(h.latencyMs)} ms`;
+  if (h?.status === 'down')  return 'down';
+  if (h?.status === 'stale') return 'stale';
+  if (h?.status === 'idle')  return 'idle';
+  return 'n/a';
+}
+function statusPillClass(status) {
+  if (status === 'down')  return 'is-down';
+  if (status === 'up')    return 'is-up';
+  if (status === 'stale') return 'is-stale';
+  return 'is-unknown';
+}
+function statusTitle(h) {
+  if (!h) return 'unknown · healthcheck off';
+  return `${h.status}${h.httpCode ? ' · HTTP ' + h.httpCode : ''}`;
+}
+function StatusBadge({ h }) {
+  return (
+    <span className={`status-pill ${statusPillClass(h?.status)}`} title={statusTitle(h)}>
+      <span className={`dot ${dotClass(h?.status)}`} aria-hidden />
+      <span className="status-lat">{statusText(h)}</span>
+    </span>
+  );
+}
+
 function FavCard({ app, health, discovery, plugins, onAppsChanged }) {
   const h = health?.[app.id];
-  const status = h?.status;
-  const lat = h?.latencyMs;
   return (
     <a className="fav" href={app.url || '#'} target={resolveTarget(app)} rel="noopener">
       <div className="fav-icon"><AppIcon app={app} size={28} /></div>
@@ -642,17 +586,16 @@ function FavCard({ app, health, discovery, plugins, onAppsChanged }) {
         <div className="fav-desc">{app.desc}</div>
       </div>
       <div className="fav-meta">
-        <span className={`dot ${dotClass(status)}`} title={h ? `${status}${h.httpCode ? ' · HTTP '+h.httpCode : ''}` : 'unknown'} />
-        <span className="fav-lat">{lat != null ? `${Math.round(lat)} ms` : '—'}</span>
+        <StatusBadge h={h} />
+        <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
+        <PinButton app={app} onChanged={onAppsChanged} />
       </div>
-      <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
-      <PinButton app={app} onChanged={onAppsChanged} className="fav-pin" />
     </a>
   );
 }
 
 function Tile({ app, health, discovery, plugins, onAppsChanged }) {
-  const status = health?.[app.id]?.status;
+  const h = health?.[app.id];
   return (
     <a className="tile" href={app.url || '#'} target={resolveTarget(app)} rel="noopener">
       <div className="tile-icon"><AppIcon app={app} size={20} /></div>
@@ -660,9 +603,11 @@ function Tile({ app, health, discovery, plugins, onAppsChanged }) {
         <div className="tile-name">{app.name}</div>
         <div className="tile-desc">{app.desc}</div>
       </div>
-      <span className={`dot ${dotClass(status)}`} title={health?.[app.id] ? `${status}${health[app.id].httpCode ? ' · HTTP '+health[app.id].httpCode : ''}` : 'unknown'} />
-      <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
-      <PinButton app={app} onChanged={onAppsChanged} className="tile-pin" />
+      <div className="tile-meta">
+        <span className={`dot ${dotClass(h?.status)}`} title={statusTitle(h)} />
+        <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
+        <PinButton app={app} onChanged={onAppsChanged} className="tile-pin" />
+      </div>
     </a>
   );
 }
@@ -716,11 +661,11 @@ function CommandPalette({ open, onClose, apps, actions, onInvoke }) {
         <div className="cmd-input">
           <Icons.search size={18} />
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKey}
-            placeholder="Salta a un'app, esegui un comando…" />
+            placeholder="Jump to an app, run a command…" />
           <kbd>esc</kbd>
         </div>
         <div className="cmd-list">
-          {results.length === 0 && <div className="cmd-empty">Nessun risultato.</div>}
+          {results.length === 0 && <div className="cmd-empty">No results.</div>}
           {results.map((r, i) => {
             const isApp = r.kind === 'app';
             const I = isApp
@@ -736,15 +681,15 @@ function CommandPalette({ open, onClose, apps, actions, onInvoke }) {
                   <div className="cmd-name">{isApp ? r.name : r.label}</div>
                   <div className="cmd-desc">{isApp ? r.desc : (r.payload || r.action)}</div>
                 </div>
-                <span className="cmd-kind">{isApp ? 'Apri' : 'Esegui'}</span>
+                <span className="cmd-kind">{isApp ? 'Open' : 'Run'}</span>
               </div>
             );
           })}
         </div>
         <div className="cmd-foot">
-          <span><kbd>↑</kbd><kbd>↓</kbd> naviga</span>
-          <span><kbd>↵</kbd> seleziona</span>
-          <span><kbd>esc</kbd> chiudi</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> select</span>
+          <span><kbd>esc</kbd> close</span>
         </div>
       </div>
     </div>
@@ -806,19 +751,19 @@ function AddServiceModal({ open, onClose, categories, onAdded }) {
   return (
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
-        <h3>Aggiungi servizio</h3>
+        <h3>Add service</h3>
         <div className="sub">
-          Salva su <span className="mono">config.json</span> tramite l'API, oppure copia lo snippet
-          e aggiungilo a mano alla chiave <span className="mono">apps</span>.
+          Save to <span className="mono">config.json</span> via the API, or copy the snippet
+          and add it manually to the <span className="mono">apps</span> key.
         </div>
 
         <div className="field-row">
           <div className="field">
-            <label>Nome</label>
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Es. Portainer" />
+            <label>Name</label>
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Portainer" />
           </div>
           <div className="field">
-            <label>Categoria</label>
+            <label>Category</label>
             <select value={form.cat} onChange={e => setForm({...form, cat: e.target.value})}>
               {categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
@@ -826,63 +771,63 @@ function AddServiceModal({ open, onClose, categories, onAdded }) {
         </div>
 
         <div className="field">
-          <label>Descrizione</label>
+          <label>Description</label>
           <input value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} placeholder="Container manager" />
         </div>
 
         <div className="field-row">
           <div className="field">
             <label>URL</label>
-            <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="https://portainer.example.com  o  /portainer/" />
+            <input value={form.url} onChange={e => setForm({...form, url: e.target.value})} placeholder="https://portainer.example.com  or  /portainer/" />
           </div>
           <div className="field">
             <label>Target</label>
             <select value={form.target} onChange={e => setForm({...form, target: e.target.value})}>
-              <option value="auto">auto (sub-domain → tab, subfolder → stessa)</option>
-              <option value="_blank">_blank (nuova tab)</option>
-              <option value="_self">_self (stessa tab)</option>
+              <option value="auto">auto (sub-domain → tab, subfolder → same)</option>
+              <option value="_blank">_blank (new tab)</option>
+              <option value="_self">_self (same tab)</option>
             </select>
           </div>
         </div>
 
         <div className="field-row">
           <div className="field">
-            <label>Icona built-in</label>
+            <label>Built-in icon</label>
             <select value={form.icon} onChange={e => setForm({...form, icon: e.target.value})}>
-              <option value="">(auto — monogram iniziali)</option>
+              <option value="">(auto — initials monogram)</option>
               {iconKeys.map(k => <option key={k} value={k}>{k}</option>)}
             </select>
           </div>
           <div className="field">
-            <label>Pin come favorito</label>
+            <label>Pin as favorite</label>
             <label className="tw-toggle" style={{padding: '9px 0 0 0'}}>
               <input type="checkbox" checked={form.fav} onChange={e => setForm({...form, fav: e.target.checked})} />
-              <span>Mostra tra i Pinned</span>
+              <span>Show among Pinned</span>
             </label>
           </div>
         </div>
 
         <div className="field">
-          <label>SVG path custom (opzionale)</label>
+          <label>Custom SVG path (optional)</label>
           <textarea rows="2" value={form.iconSvgPath}
             onChange={e => setForm({...form, iconSvgPath: e.target.value})}
-            placeholder='M12 2L4 18h16L12 3z  (attributo d di <path>, viewBox 24x24)' />
+            placeholder='M12 2L4 18h16L12 3z  (d attribute of <path>, viewBox 24x24)' />
         </div>
 
         <div className="field">
-          <label>Anteprima snippet <span className="mono" style={{color:'var(--ink-soft)'}}>(push into apps[])</span></label>
+          <label>Snippet preview <span className="mono" style={{color:'var(--ink-soft)'}}>(push into apps[])</span></label>
           <pre className="snippet">{snippet}</pre>
         </div>
 
         <div className="modal-actions">
-          <button className="qa-btn" onClick={onClose}><Icons.close size={14}/><span>Annulla</span></button>
+          <button className="qa-btn" onClick={onClose}><Icons.close size={14}/><span>Cancel</span></button>
           <button className="qa-btn" onClick={doCopy}>
             {copied ? <Icons.check size={14}/> : <Icons.copy size={14}/>}
-            <span>{copied ? 'Copiato' : 'Copia snippet'}</span>
+            <span>{copied ? 'Copied' : 'Copy snippet'}</span>
           </button>
           <button className="qa-btn primary" onClick={doSave} disabled={saveStatus==='saving' || !form.name}>
             <Icons.plus size={14}/>
-            <span>{saveStatus==='saving' ? 'Salvo…' : saveStatus==='saved' ? 'Salvato' : saveStatus==='nobackend' ? 'Backend off — usa Copia' : 'Salva su config.json'}</span>
+            <span>{saveStatus==='saving' ? 'Saving…' : saveStatus==='saved' ? 'Saved' : saveStatus==='nobackend' ? 'Backend off — use Copy' : 'Save to config.json'}</span>
           </button>
         </div>
       </div>
@@ -915,12 +860,12 @@ function PluginStoreModal({ open, onClose, installed }) {
       <div className="modal modal-store" onClick={e => e.stopPropagation()}>
         <h3>Plugin Store</h3>
         <div className="sub">
-          Estensioni opzionali. I plugin core sono già installati e segnati con il badge.
+          Optional extensions. Core plugins are already installed and marked with the badge.
         </div>
 
         <div className="store-section">
-          <div className="store-h">Installati</div>
-          {installed.length === 0 && <div className="store-empty">Nessun plugin caricato.</div>}
+          <div className="store-h">Installed</div>
+          {installed.length === 0 && <div className="store-empty">No plugins loaded.</div>}
           {installed.map(p => (
             <div className="store-row" key={p.id}>
               <div className="store-row-body">
@@ -936,13 +881,13 @@ function PluginStoreModal({ open, onClose, installed }) {
         <div className="store-section">
           <div className="store-h">Community</div>
           {error && <div className="shell-error">Registry: {error}</div>}
-          {list.length === 0 && !error && <div className="store-empty">Registry vuoto o non raggiungibile.</div>}
+          {list.length === 0 && !error && <div className="store-empty">Registry empty or unreachable.</div>}
           {list.map(p => {
             const have = installedIds.has(p.id);
             return (
               <div className="store-row" key={p.id}>
                 <div className="store-row-body">
-                  <div className="store-name">{p.name} {have && <span className="badge">installato</span>}</div>
+                  <div className="store-name">{p.name} {have && <span className="badge">installed</span>}</div>
                   <div className="store-desc">{p.description || ''}</div>
                   <div className="store-meta mono">v{p.version} · {p.tags?.join(' · ') || ''}</div>
                 </div>
@@ -953,105 +898,9 @@ function PluginStoreModal({ open, onClose, installed }) {
         </div>
 
         <div className="modal-actions">
-          <button className="qa-btn" onClick={onClose}><span>Chiudi</span></button>
+          <button className="qa-btn" onClick={onClose}><span>Close</span></button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ---------------- TWEAKS PANEL ---------------- */
-function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpenStore }) {
-  if (!open) return null;
-  const set = (k, v) => setPrefs(s => ({ ...s, [k]: v }));
-  const themes = themeCfg?.availableThemes || [];
-  return (
-    <div className="tweaks-scrim" onClick={onClose}>
-      <aside className="tweaks" onClick={e => e.stopPropagation()}>
-        <header>
-          <h3>Tweaks</h3>
-          <button className="iconbtn" onClick={onClose}><Icons.close size={18}/></button>
-        </header>
-
-        {themes.length > 0 && (
-          <div className="tw-group">
-            <div className="tw-label">Accent</div>
-            <div className="tw-swatches">
-              {themes.map(t => (
-                <button key={t.id}
-                  className={`swatch ${prefs.theme === t.id ? 'on' : ''}`}
-                  style={{ '--sw': t.color }}
-                  onClick={() => set('theme', t.id)}
-                  aria-label={t.label}>
-                  <span /><em>{t.label}</em>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="tw-group">
-          <div className="tw-label">Densità</div>
-          <div className="tw-segment">
-            {['comfortable','compact'].map(d => (
-              <button key={d} className={prefs.density === d ? 'on' : ''} onClick={() => set('density', d)}>{d}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tw-group">
-          <div className="tw-label">Tema</div>
-          <div className="tw-segment">
-            {['light','dark'].map(d => (
-              <button key={d} className={prefs.mode === d ? 'on' : ''} onClick={() => set('mode', d)}>{d}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tw-group">
-          <label className="tw-toggle">
-            <input type="checkbox" checked={prefs.showStats ?? features.showStats}
-              onChange={e => set('showStats', e.target.checked)} />
-            <span>Mostra live stats</span>
-          </label>
-          <label className="tw-toggle">
-            <input type="checkbox" checked={prefs.showFavs ?? features.showFavs}
-              onChange={e => set('showFavs', e.target.checked)} />
-            <span>Mostra riga Pinned</span>
-          </label>
-          <label className="tw-toggle">
-            <input type="checkbox" checked={prefs.showQuickActions ?? features.showQuickActions}
-              onChange={e => set('showQuickActions', e.target.checked)} />
-            <span>Mostra Quick Actions</span>
-          </label>
-        </div>
-
-        {(prefs.showStats ?? features.showStats) && (
-          <div className="tw-group">
-            <div className="tw-label">Stats — visibili</div>
-            {STAT_KEYS.map(k => (
-              <label key={k} className="tw-toggle">
-                <input
-                  type="checkbox"
-                  checked={(prefs.statsVisible || {})[k] !== false}
-                  onChange={e => setPrefs(s => ({
-                    ...s,
-                    statsVisible: { ...(s.statsVisible || {}), [k]: e.target.checked }
-                  }))}
-                />
-                <span>{STAT_LABELS[k]}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        <div className="tw-group">
-          <button className="qa-btn primary" style={{width: '100%', justifyContent: 'center'}}
-            onClick={onOpenStore}>
-            <Icons.plus size={14}/><span>Plugin store</span>
-          </button>
-        </div>
-      </aside>
     </div>
   );
 }
@@ -1072,15 +921,117 @@ function applyFonts(theme) {
   document.documentElement.style.setProperty('--ff-mono',    `'${theme.fontMono || 'JetBrains Mono'}', ui-monospace, monospace`);
 }
 
+/* ---------------- TWEAKS PANEL (non-modal drawer) ---------------- */
+function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpenStore, onOpenGallery, mode, currentTheme, onPickTheme, onSetMode }) {
+  const [render, setRender] = useState(open);
+  const [closing, setClosing] = useState(false);
+  // Keep the drawer mounted through the close animation, then unmount.
+  useEffect(() => {
+    if (open) { setRender(true); setClosing(false); return; }
+    if (!render) return;
+    setClosing(true);
+    const t = setTimeout(() => { setRender(false); setClosing(false); }, 300);
+    return () => clearTimeout(t);
+  }, [open]);
+  if (!render) return null;
+  const set = (k, v) => setPrefs(s => ({ ...s, [k]: v }));
+  const show = (k) => prefs[k] ?? features[k] ?? true;
+  const customThemes = prefs.customThemes || [];
+  const curId = currentTheme ?? resolveTheme(prefs.theme ?? themeCfg.accent ?? 'ink', customThemes).id;
+  let pickerThemes = [...THEMES, ...customThemes];
+  if (!pickerThemes.some(t => t.id === curId)) pickerThemes = [...pickerThemes, resolveTheme(curId, customThemes)];
+  return (
+    <aside className={`tweaks ${closing ? 'closing' : ''}`} aria-label="Tweaks panel">
+        <header>
+          <h3>Tweaks</h3>
+          <button className="tw-close" onClick={onClose} aria-label="Close Tweaks" title="Close · Esc">
+            <Icons.close size={15} />
+          </button>
+        </header>
+
+        <div className="tw-group">
+          <div className="tw-label">Theme</div>
+          <ThemeGroupedGrid themes={pickerThemes} mode={mode} current={curId} onPick={onPickTheme} compact />
+          <button className="qa-btn" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={onOpenGallery}>
+            <Icons.star size={14} /><span>Theme gallery</span>
+          </button>
+        </div>
+
+        <div className="tw-group">
+          <div className="tw-label">Density</div>
+          <div className="tw-segment">
+            {['comfortable','compact'].map(d => (
+              <button key={d} className={(prefs.density ?? themeCfg.density) === d ? 'on' : ''} onClick={() => set('density', d)}>{d}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="tw-group">
+          <div className="tw-label">Appearance</div>
+          <div className="tw-segment">
+            {['light','dark'].map(d => (
+              <button key={d} className={mode === d ? 'on' : ''}
+                onClick={() => onSetMode(d)}>{d}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="tw-group">
+          <div className="tw-label">Group by</div>
+          <div className="tw-segment">
+            {[['category','Category'],['host','Host']].map(([g, label]) => (
+              <button key={g} className={(prefs.groupBy ?? 'category') === g ? 'on' : ''} onClick={() => set('groupBy', g)}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="tw-group">
+          <label className="tw-toggle">
+            <input type="checkbox" checked={show('showStats')} onChange={e => set('showStats', e.target.checked)} />
+            <span>Show live stats</span>
+          </label>
+          <label className="tw-toggle">
+            <input type="checkbox" checked={show('showFavs')} onChange={e => set('showFavs', e.target.checked)} />
+            <span>Show Pinned row</span>
+          </label>
+          <label className="tw-toggle">
+            <input type="checkbox" checked={show('showQuickActions')} onChange={e => set('showQuickActions', e.target.checked)} />
+            <span>Show Quick Actions</span>
+          </label>
+        </div>
+
+        {show('showStats') && (
+          <div className="tw-group">
+            <div className="tw-label">Stats — visible</div>
+            {STAT_KEYS.map(k => (
+              <label key={k} className="tw-toggle">
+                <input type="checkbox" checked={(prefs.statsVisible || {})[k] !== false}
+                  onChange={e => setPrefs(s => ({ ...s, statsVisible: { ...(s.statsVisible || {}), [k]: e.target.checked } }))} />
+                <span>{STAT_LABELS[k]}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        <div className="tw-group">
+          <button className="qa-btn primary" style={{ width: '100%', justifyContent: 'center' }} onClick={onOpenStore}>
+            <Icons.plus size={14}/><span>Plugin store</span>
+          </button>
+        </div>
+    </aside>
+  );
+}
+
 /* ---------------- APP SHELL ---------------- */
 function Dashboard({ clientPrefs }) {
   const [cfg, setCfg]   = useState(null);
   const [err, setErr]   = useState(null);
   const [prefs, setPrefs] = useState(clientPrefs || {});
   const [cmdOpen, setCmdOpen]     = useState(false);
-  const [tweaksOpen, setTweaksOpen] = useState(false);
+  const [tweaksOpen, setTweaksOpen] = useState(!!(clientPrefs && clientPrefs.panelOpen));
   const [addOpen, setAddOpen]       = useState(false);
   const [storeOpen, setStoreOpen]   = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [toast, setToast]           = useState(null);
   const health = useHealthStatus(30_000);
   const discovery = useDiscovery(60_000);
@@ -1097,25 +1048,38 @@ function Dashboard({ clientPrefs }) {
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  // apply theme + persist prefs
+  // Single toggle for the (non-modal) drawer.
+  const toggleTweaks = useCallback((v) => {
+    setTweaksOpen(prev => (typeof v === 'boolean' ? v : !prev));
+  }, []);
+
+  // Persist open state (so it can stay open across reloads) + push the home
+  // aside to make room — both react to tweaksOpen, no nested state updates.
+  useEffect(() => {
+    document.body.classList.toggle('tweaks-open', tweaksOpen);
+    setPrefs(p => (p.panelOpen === tweaksOpen ? p : { ...p, panelOpen: tweaksOpen }));
+  }, [tweaksOpen]);
+
+  // Apply theme/mode/density to <html> + persist prefs to localStorage.
   useEffect(() => {
     if (!cfg) return;
-    const theme = cfg.theme || {};
-    const effective = {
-      theme:    prefs.theme    ?? theme.accent    ?? 'ink',
-      mode:     prefs.mode     ?? theme.mode      ?? 'dark',
-      density:  prefs.density  ?? theme.density   ?? 'comfortable',
-    };
+    const t = cfg.theme || {};
     const root = document.documentElement;
-    root.dataset.theme   = effective.theme;
-    root.dataset.mode    = effective.mode;
-    root.dataset.density = effective.density;
-    if (theme.customAccentHex && effective.theme === 'custom') {
-      root.style.setProperty('--accent', theme.customAccentHex);
-    } else {
-      root.style.removeProperty('--accent');
-    }
-    applyFonts(theme);
+    const themeId = normalizeThemeId(prefs.theme ?? t.accent ?? 'ink', prefs.mode ?? t.mode ?? 'dark');
+    const theme = resolveTheme(themeId, prefs.customThemes || []);
+    const mode = theme.forceMode ?? prefs.mode ?? t.mode ?? 'dark';
+    // Suppress transitions while swapping accent/surface vars. Without this,
+    // properties that resolve through var(--accent) AND have a transition don't
+    // repaint when only the custom prop changes (a Chromium quirk) — e.g. pinned
+    // stars / primary buttons would stay stuck on the previous accent.
+    root.classList.add('theme-switching');
+    root.dataset.theme   = themeId;
+    root.dataset.mode    = mode;
+    root.dataset.density = prefs.density ?? t.density ?? 'comfortable';
+    applyThemeVars(root, theme, mode);
+    void root.offsetWidth; // forced reflow commits the new vars with transitions OFF
+    root.classList.remove('theme-switching');
+    applyFonts(t);
     document.title = cfg.branding?.title || 'lgboard';
     localStorage.setItem('lgboard.prefs', JSON.stringify(prefs));
   }, [cfg, prefs]);
@@ -1123,18 +1087,28 @@ function Dashboard({ clientPrefs }) {
   // ⌘K
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault(); setCmdOpen(v => !v);
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen(v => !v); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 1600);
-  };
+  // Esc dismisses the top-most layer (open modal first, then the Tweaks drawer).
+  // The command palette handles its own Esc, so we step aside when it's open.
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (cmdOpen) return;
+      if (addOpen) { setAddOpen(false); return; }
+      if (storeOpen) { setStoreOpen(false); return; }
+      if (galleryOpen) { setGalleryOpen(false); return; }
+      if (tweaksOpen) { toggleTweaks(false); return; }
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [cmdOpen, addOpen, storeOpen, galleryOpen, tweaksOpen, toggleTweaks]);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 1600); };
 
   const invokeAction = useCallback((a) => {
     if (!a || !a.action) return;
@@ -1144,32 +1118,87 @@ function Dashboard({ clientPrefs }) {
       else window.location.href = a.payload;
     } else if (a.action === 'copy') {
       navigator.clipboard.writeText(a.payload || '').then(
-        () => showToast(`Copiato: ${a.payload}`),
-        () => showToast('Impossibile copiare'),
+        () => showToast(`Copied: ${a.payload}`),
+        () => showToast('Could not copy'),
       );
     } else if (a.action === 'modal:add-service') {
       setAddOpen(true);
     }
   }, []);
 
-  if (err) return <div style={{padding: 40}}>Errore caricamento <code>config.json</code>: {err}</div>;
-  if (!cfg) return <div style={{padding: 40, color: 'var(--ink-soft)'}}>Caricamento…</div>;
+  // Save a custom theme + select it. Custom themes live in prefs (persisted to
+  // localStorage with the rest of the prefs).
+  const saveCustomTheme = (def) => setPrefs(p => {
+    const others = (p.customThemes || []).filter(t => t.id !== def.id);
+    const m = def.forceMode || p.mode || 'dark';
+    return { ...p, customThemes: [...others, def], theme: def.id, mode: m,
+      [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: def.id };
+  });
+  // Pick a theme. Every theme is mode-locked now, so this also sets the mode and
+  // remembers the pick as the last theme used in that mode.
+  const pickTheme = (id) => setPrefs(p => {
+    const th = resolveTheme(id, p.customThemes || []);
+    const m = th.forceMode || p.mode || 'dark';
+    return { ...p, theme: id, mode: m,
+      [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: id };
+  });
+  // Toggle light/dark. Remember the theme we're leaving, then restore the last
+  // theme used in the target mode (default to that mode's Ink accent).
+  const switchMode = (m) => setPrefs(p => {
+    const curMode = p.mode || cfg?.theme?.mode || 'dark';
+    const curId = normalizeThemeId(p.theme ?? cfg?.theme?.accent ?? 'ink', curMode);
+    const leaving = curMode === 'light' ? 'lastLightTheme' : 'lastDarkTheme';
+    const memo = { ...p, [leaving]: curId };
+    let target = (m === 'light' ? memo.lastLightTheme : memo.lastDarkTheme) || `ink-${m}`;
+    if ((resolveTheme(target, p.customThemes || []).forceMode || m) !== m) target = `ink-${m}`;
+    return { ...memo, mode: m, theme: target };
+  });
+
+  if (err) return <div style={{padding: 40}}>Error loading <code>config.json</code>: {err}</div>;
+  if (!cfg) return <div style={{padding: 40, color: 'var(--ink-soft)'}}>Loading…</div>;
 
   const features = cfg.features || {};
   const show = (k) => prefs[k] ?? features[k] ?? true;
   const apps = cfg.apps || [];
   const categories = cfg.categories || [];
   const favs = apps.filter(a => a.fav);
-  const mode = prefs.mode ?? cfg.theme?.mode ?? 'dark';
+  const themeId = normalizeThemeId(prefs.theme ?? cfg.theme?.accent ?? 'ink', prefs.mode ?? cfg.theme?.mode ?? 'dark');
+  const selectedTheme = resolveTheme(themeId, prefs.customThemes || []);
+  const mode = selectedTheme.forceMode ?? prefs.mode ?? cfg.theme?.mode ?? 'dark';
+  const groupBy = prefs.groupBy ?? 'category';
+  const downSome = Object.values(health).some(h => h.status === 'down');
+
+  // Host groups for "group by host": derived from the apps' `host` field (default
+  // 'local'), ordered local-first then by the stats.remoteHosts config order.
+  // Names come from stats.localName / stats.remoteHosts[].name.
+  // ponytail: derived from apps, not the live stats payload — keeps Dashboard
+  // decoupled from StatsStrip; revisit if hosts ever need to show with zero apps.
+  const statsCfg = cfg.stats || {};
+  const remoteHosts = statsCfg.remoteHosts || [];
+  const hostName = (id) => id === 'local'
+    ? (statsCfg.localName || cfg.branding?.subtitle || 'local')
+    : (remoteHosts.find(h => h.id === id)?.name || id);
+  const hostOrder = ['local', ...remoteHosts.map(h => h.id)];
+  const hostRank = (id) => { const i = hostOrder.indexOf(id); return i === -1 ? 999 : i; };
+  const hostGroups = [...new Set(apps.map(a => a.host || 'local'))]
+    .sort((a, b) => hostRank(a) - hostRank(b))
+    .map(id => ({ id, name: hostName(id) }));
+
+  const renderApps = (list) => (
+    <div className="tile-grid">
+      {list.map(a => <Tile key={a.id} app={a} health={health} discovery={discovery} plugins={pluginRegistry} onAppsChanged={loadConfig} />)}
+    </div>
+  );
 
   return (
     <div className="shell">
       <Header
         branding={cfg.branding || {}}
         onOpenSearch={() => setCmdOpen(true)}
-        onOpenTweaks={() => setTweaksOpen(true)}
+        onToggleTweaks={() => toggleTweaks()}
+        tweaksOpen={tweaksOpen}
         mode={mode}
-        setMode={(m) => setPrefs(p => ({ ...p, mode: m }))}
+        setMode={switchMode}
         showGreeting={features.showGreeting !== false}
         showCommandPalette={features.showCommandPalette !== false}
       />
@@ -1179,8 +1208,8 @@ function Dashboard({ clientPrefs }) {
           <QuickActions actions={cfg.quickActions || []} onInvoke={invokeAction} />
           <div className="row-ops-right">
             <span className="ops-note">
-              <span className={`dot inline ${Object.values(health).some(h => h.status === 'down') ? 'dot-down' : 'dot-up'}`} />
-              {Object.values(health).some(h => h.status === 'down') ? 'Qualche servizio down' : 'Tutti i sistemi operativi'}
+              <span className={`dot inline ${downSome ? 'dot-down' : 'dot-up'}`} />
+              {downSome ? 'Some service down' : 'All systems operational'}
             </span>
           </div>
         </div>
@@ -1206,30 +1235,45 @@ function Dashboard({ clientPrefs }) {
         </section>
       )}
 
-      {categories.map(cat => {
-        const list = apps.filter(a => a.cat === cat.id);
-        if (!list.length) return null;
-        const I = Icons[cat.icon] || Icons.server;
-        return (
-          <section className="section" key={cat.id}>
-            <div className="sect-head">
-              <I size={16} />
-              <h2>{cat.label}</h2>
-              <span className="count">{list.length}</span>
-            </div>
-            <div className="tile-grid">
-              {list.map(a => <Tile key={a.id} app={a} health={health} discovery={discovery} plugins={pluginRegistry} onAppsChanged={loadConfig} />)}
-            </div>
-          </section>
-        );
-      })}
+      {groupBy === 'host' ? (
+        hostGroups.map(host => {
+          const list = apps.filter(a => (a.host || 'local') === host.id);
+          if (!list.length) return null;
+          return (
+            <section className="section" key={host.id}>
+              <div className="sect-head">
+                <Icons.server size={16} />
+                <h2>{host.name}</h2>
+                <span className="count">{list.length}</span>
+              </div>
+              {renderApps(list)}
+            </section>
+          );
+        })
+      ) : (
+        categories.map(cat => {
+          const list = apps.filter(a => a.cat === cat.id);
+          if (!list.length) return null;
+          const I = Icons[cat.icon] || Icons.server;
+          return (
+            <section className="section" key={cat.id}>
+              <div className="sect-head">
+                <I size={16} />
+                <h2>{cat.label}</h2>
+                <span className="count">{list.length}</span>
+              </div>
+              {renderApps(list)}
+            </section>
+          );
+        })
+      )}
 
       {features.showFooter !== false && (
         <footer className="foot">
           <div>{cfg.branding?.title || 'lgboard'} · <span className="mono">{cfg.branding?.subtitle || ''}</span></div>
           <div className="foot-right">
             {cfg.branding?.footerText && <span className="foot-text">{cfg.branding.footerText}</span>}
-            {features.showCommandPalette !== false && <span className="foot-kbd"><kbd>⌘K</kbd> per cercare</span>}
+            {features.showCommandPalette !== false && <span className="foot-kbd"><kbd>⌘K</kbd> to search</span>}
             <a className="foot-link"
                href={cfg.branding?.repoUrl || 'https://github.com/lglot/lgboard'}
                target="_blank" rel="noopener" aria-label="Repository">
@@ -1242,9 +1286,16 @@ function Dashboard({ clientPrefs }) {
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} apps={apps}
         actions={cfg.quickActions || []} onInvoke={invokeAction} />
-      <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)}
-        themeCfg={cfg.theme || {}} features={features} prefs={prefs} setPrefs={setPrefs}
-        onOpenStore={() => { setTweaksOpen(false); setStoreOpen(true); }} />
+      <TweaksPanel open={tweaksOpen} onClose={() => toggleTweaks(false)}
+        themeCfg={cfg.theme || {}} features={features} prefs={prefs} setPrefs={setPrefs} mode={mode}
+        currentTheme={themeId} onPickTheme={pickTheme} onSetMode={switchMode}
+        onOpenStore={() => setStoreOpen(true)}
+        onOpenGallery={() => setGalleryOpen(true)} />
+      <ThemeGalleryModal open={galleryOpen} onClose={() => setGalleryOpen(false)}
+        mode={mode} current={themeId}
+        customThemes={prefs.customThemes || []} author={cfg.branding?.user}
+        onPick={pickTheme}
+        onSaveCustom={saveCustomTheme} />
       <AddServiceModal open={addOpen} onClose={() => setAddOpen(false)}
         categories={categories} onAdded={loadConfig} />
       <PluginStoreModal open={storeOpen} onClose={() => setStoreOpen(false)}
