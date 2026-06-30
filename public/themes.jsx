@@ -44,8 +44,9 @@ function normalizeThemeId(id, mode) {
   return id;
 }
 
-// Full themes — force a mode and retint the surfaces. Nods to well-known
-// open-source color schemes; these are exactly the "predefined themes".
+// Full "system" themes — force a mode and retint the surfaces. Nods to well-known
+// open-source color schemes. These show ONLY in the Theme Gallery (not the quick
+// Tweaks grid, which keeps just the accent identities).
 const FULL_THEMES = [
   { id: 'nord', label: 'Nord', author: 'arcticicestudio', source: 'core', forceMode: 'dark',
     accent: { dark: 'oklch(74% 0.09 230)' },
@@ -56,31 +57,43 @@ const FULL_THEMES = [
   { id: 'gruvbox', label: 'Gruvbox', author: 'morhetz', source: 'core', forceMode: 'dark',
     accent: { dark: 'oklch(80% 0.13 75)' },
     surfaces: { dark: { bg: 'oklch(25% 0.012 80)', bgElev: 'oklch(29% 0.018 80)', ink: 'oklch(91% 0.03 90)', line: 'oklch(35% 0.02 80)' } } },
-  { id: 'solarized', label: 'Solarized', author: 'altercation', source: 'core', forceMode: 'light',
+  { id: 'tokyonight', label: 'Tokyo Night', author: 'enkia', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(74% 0.12 268)' },
+    surfaces: { dark: { bg: 'oklch(23% 0.03 270)', bgElev: 'oklch(27% 0.03 270)', ink: 'oklch(90% 0.02 270)', line: 'oklch(33% 0.03 270)' } } },
+  { id: 'rosepine', label: 'Rosé Pine', author: 'rose-pine', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(80% 0.07 5)' },
+    surfaces: { dark: { bg: 'oklch(24% 0.02 320)', bgElev: 'oklch(28% 0.02 320)', ink: 'oklch(92% 0.02 330)', line: 'oklch(34% 0.02 320)' } } },
+  { id: 'everforest', label: 'Everforest', author: 'sainnhe', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(80% 0.10 140)' },
+    surfaces: { dark: { bg: 'oklch(27% 0.018 150)', bgElev: 'oklch(31% 0.02 150)', ink: 'oklch(91% 0.02 130)', line: 'oklch(37% 0.02 150)' } } },
+  { id: 'mocha', label: 'Catppuccin Mocha', author: 'catppuccin', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(80% 0.10 300)' },
+    surfaces: { dark: { bg: 'oklch(22% 0.02 290)', bgElev: 'oklch(26% 0.02 290)', ink: 'oklch(92% 0.02 290)', line: 'oklch(32% 0.02 290)' } } },
+  { id: 'onedark', label: 'One Dark', author: 'atom', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(70% 0.12 230)' },
+    surfaces: { dark: { bg: 'oklch(28% 0.015 250)', bgElev: 'oklch(32% 0.015 250)', ink: 'oklch(90% 0.01 250)', line: 'oklch(38% 0.015 250)' } } },
+  { id: 'monokai', label: 'Monokai', author: 'monokai', source: 'core', forceMode: 'dark',
+    accent: { dark: 'oklch(78% 0.17 350)' },
+    surfaces: { dark: { bg: 'oklch(27% 0.012 100)', bgElev: 'oklch(31% 0.014 100)', ink: 'oklch(93% 0.02 95)', line: 'oklch(37% 0.014 100)' } } },
+  { id: 'solarized', label: 'Solarized Light', author: 'altercation', source: 'core', forceMode: 'light',
     accent: { light: 'oklch(56% 0.10 200)' },
     surfaces: { light: { bg: 'oklch(96% 0.025 90)', bgElev: 'oklch(98.5% 0.02 90)', ink: 'oklch(42% 0.02 200)', line: 'oklch(88% 0.025 90)' } } },
-  { id: 'latte', label: 'Latte', author: 'catppuccin', source: 'core', forceMode: 'light',
+  { id: 'latte', label: 'Catppuccin Latte', author: 'catppuccin', source: 'core', forceMode: 'light',
     accent: { light: 'oklch(52% 0.16 295)' },
     surfaces: { light: { bg: 'oklch(95% 0.012 280)', bgElev: 'oklch(98% 0.01 280)', ink: 'oklch(38% 0.03 285)', line: 'oklch(88% 0.015 285)' } } },
+  { id: 'github-light', label: 'GitHub Light', author: 'github', source: 'core', forceMode: 'light',
+    accent: { light: 'oklch(52% 0.17 250)' },
+    surfaces: { light: { bg: 'oklch(99% 0 0)', bgElev: 'oklch(100% 0 0)', ink: 'oklch(28% 0.02 260)', line: 'oklch(90% 0.005 260)' } } },
+  { id: 'mono', label: 'Monochrome', author: 'lgboard', source: 'core', forceMode: 'light',
+    accent: { light: 'oklch(30% 0 0)' },
+    surfaces: { light: { bg: 'oklch(97% 0 0)', bgElev: 'oklch(100% 0 0)', ink: 'oklch(20% 0 0)', line: 'oklch(89% 0 0)' } } },
 ];
 
 const THEMES = [...ACCENT_THEMES, ...FULL_THEMES];
 
-// Seeded community gallery (analog to the plugin store community list).
-const COMMUNITY_THEMES = [
-  { id: 'rosepine', label: 'Rosé Pine', author: 'rose-pine', source: 'community', forceMode: 'dark',
-    accent: { dark: 'oklch(80% 0.07 5)' },
-    surfaces: { dark: { bg: 'oklch(24% 0.02 320)', bgElev: 'oklch(28% 0.02 320)', ink: 'oklch(92% 0.02 330)', line: 'oklch(34% 0.02 320)' } } },
-  { id: 'tokyonight', label: 'Tokyo Night', author: 'enkia', source: 'community', forceMode: 'dark',
-    accent: { dark: 'oklch(74% 0.12 268)' },
-    surfaces: { dark: { bg: 'oklch(23% 0.03 270)', bgElev: 'oklch(27% 0.03 270)', ink: 'oklch(90% 0.02 270)', line: 'oklch(33% 0.03 270)' } } },
-  { id: 'everforest', label: 'Everforest', author: 'sainnhe', source: 'community', forceMode: 'dark',
-    accent: { dark: 'oklch(80% 0.10 140)' },
-    surfaces: { dark: { bg: 'oklch(27% 0.018 150)', bgElev: 'oklch(31% 0.02 150)', ink: 'oklch(91% 0.02 130)', line: 'oklch(37% 0.02 150)' } } },
-  { id: 'mono', label: 'Monochrome', author: 'k-vernooy', source: 'community', forceMode: 'light',
-    accent: { light: 'oklch(30% 0 0)' },
-    surfaces: { light: { bg: 'oklch(97% 0 0)', bgElev: 'oklch(100% 0 0)', ink: 'oklch(20% 0 0)', line: 'oklch(89% 0 0)' } } },
-];
+// Community gallery — empty by default (no seeded community themes). The
+// Community tab shows the "publish a PR" empty state until entries are added.
+const COMMUNITY_THEMES = [];
 
 function pickAccent(theme, mode) {
   const a = theme && theme.accent;
@@ -341,6 +354,6 @@ function ThemeGalleryModal({ open, onClose, mode, current, customThemes, onPick,
 }
 
 Object.assign(window, {
-  THEMES, COMMUNITY_THEMES, resolveTheme, normalizeThemeId, applyThemeVars, pickAccent,
+  THEMES, ACCENT_THEMES, COMMUNITY_THEMES, resolveTheme, normalizeThemeId, applyThemeVars, pickAccent,
   themeColors, ThemePreview, ThemeCard, ThemeGroupedGrid, ThemeGalleryModal,
 });

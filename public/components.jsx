@@ -273,8 +273,7 @@ function DiskBar({ disk }) {
   );
 }
 
-function StatsStrip({ hidden, visible, storageOpen, setStorageOpen }) {
-  const { hosts, loaded, netHistory } = useServerStats(3000);
+function StatsStrip({ hidden, visible, storageOpen, setStorageOpen, hosts, loaded, netHistory }) {
   const [hostIdx, setHostIdx] = useState(0);
   const [containersOpen, setContainersOpen] = useState(false);
   const [cFilter, setCFilter] = useState('all');
@@ -938,7 +937,9 @@ function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpe
   const show = (k) => prefs[k] ?? features[k] ?? true;
   const customThemes = prefs.customThemes || [];
   const curId = currentTheme ?? resolveTheme(prefs.theme ?? themeCfg.accent ?? 'ink', customThemes).id;
-  let pickerThemes = [...THEMES, ...customThemes];
+  // Quick grid shows only the accent identities; full "system" themes live in the
+  // Theme Gallery. The active theme is appended if it isn't an accent one.
+  let pickerThemes = [...ACCENT_THEMES, ...customThemes];
   if (!pickerThemes.some(t => t.id === curId)) pickerThemes = [...pickerThemes, resolveTheme(curId, customThemes)];
   return (
     <aside className={`tweaks ${closing ? 'closing' : ''}`} aria-label="Tweaks panel">
@@ -1036,6 +1037,7 @@ function Dashboard({ clientPrefs }) {
   const health = useHealthStatus(30_000);
   const discovery = useDiscovery(60_000);
   const { manifests: pluginManifests, registry: pluginRegistry } = usePlugins();
+  const { hosts: statHosts, loaded: statsLoaded, netHistory } = useServerStats(3000);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -1166,21 +1168,38 @@ function Dashboard({ clientPrefs }) {
   const selectedTheme = resolveTheme(themeId, prefs.customThemes || []);
   const mode = selectedTheme.forceMode ?? prefs.mode ?? cfg.theme?.mode ?? 'dark';
   const groupBy = prefs.groupBy ?? 'category';
-  const downSome = Object.values(health).some(h => h.status === 'down');
 
-  // Host groups for "group by host": derived from the apps' `host` field (default
-  // 'local'), ordered local-first then by the stats.remoteHosts config order.
-  // Names come from stats.localName / stats.remoteHosts[].name.
-  // ponytail: derived from apps, not the live stats payload — keeps Dashboard
-  // decoupled from StatsStrip; revisit if hosts ever need to show with zero apps.
+  // Group-by-host: an app's host is resolved from (1) an explicit `host` field,
+  // (2) which host actually runs its container — matched against the live
+  // per-host container lists from /api/stats, else (3) 'other' (shown last) so
+  // apps we can't place aren't silently dumped onto the local host.
   const statsCfg = cfg.stats || {};
   const remoteHosts = statsCfg.remoteHosts || [];
-  const hostName = (id) => id === 'local'
-    ? (statsCfg.localName || cfg.branding?.subtitle || 'local')
-    : (remoteHosts.find(h => h.id === id)?.name || id);
+  const hostName = (id) =>
+    id === 'local' ? (statsCfg.localName || cfg.branding?.subtitle || 'local') :
+    id === 'other' ? 'Other' :
+    (remoteHosts.find(h => h.id === id)?.name || statHosts.find(h => h.id === id)?.name || id);
+  // container name (lowercased) → host id, from the live stats payload (first
+  // host wins on duplicate names, so local takes precedence over remotes).
+  const containerHost = {};
+  for (const h of statHosts) {
+    for (const c of (h.containers?.items || [])) {
+      const k = c.name && String(c.name).toLowerCase();
+      if (k && !(k in containerHost)) containerHost[k] = h.id;
+    }
+  }
+  const matchHost = (app) => {
+    const keys = [app.containerName, app.id, (app.name || '').replace(/\s+/g, '-'), app.icon]
+      .filter(Boolean).map(s => String(s).toLowerCase());
+    for (const [cname, hid] of Object.entries(containerHost)) {
+      if (keys.some(k => cname === k || cname.startsWith(k + '-'))) return hid;
+    }
+    return null;
+  };
+  const appHost = (app) => app.host || matchHost(app) || 'other';
   const hostOrder = ['local', ...remoteHosts.map(h => h.id)];
-  const hostRank = (id) => { const i = hostOrder.indexOf(id); return i === -1 ? 999 : i; };
-  const hostGroups = [...new Set(apps.map(a => a.host || 'local'))]
+  const hostRank = (id) => id === 'other' ? 9999 : (hostOrder.indexOf(id) === -1 ? 999 : hostOrder.indexOf(id));
+  const hostGroups = [...new Set(apps.map(appHost))]
     .sort((a, b) => hostRank(a) - hostRank(b))
     .map(id => ({ id, name: hostName(id) }));
 
@@ -1206,12 +1225,6 @@ function Dashboard({ clientPrefs }) {
       {show('showQuickActions') && (
         <div className="row-ops">
           <QuickActions actions={cfg.quickActions || []} onInvoke={invokeAction} />
-          <div className="row-ops-right">
-            <span className="ops-note">
-              <span className={`dot inline ${downSome ? 'dot-down' : 'dot-up'}`} />
-              {downSome ? 'Some service down' : 'All systems operational'}
-            </span>
-          </div>
         </div>
       )}
 
@@ -1220,6 +1233,9 @@ function Dashboard({ clientPrefs }) {
         visible={prefs.statsVisible || {}}
         storageOpen={!!prefs.storageOpen}
         setStorageOpen={(v) => setPrefs(p => ({ ...p, storageOpen: v }))}
+        hosts={statHosts}
+        loaded={statsLoaded}
+        netHistory={netHistory}
       />
 
       {show('showFavs') && favs.length > 0 && (
@@ -1237,7 +1253,7 @@ function Dashboard({ clientPrefs }) {
 
       {groupBy === 'host' ? (
         hostGroups.map(host => {
-          const list = apps.filter(a => (a.host || 'local') === host.id);
+          const list = apps.filter(a => appHost(a) === host.id);
           if (!list.length) return null;
           return (
             <section className="section" key={host.id}>
