@@ -309,6 +309,9 @@ kbd {
   background: var(--line-2); padding: 2px 7px; border-radius: 999px;
 }
 .host-tab.on .host-tab-meta { background: var(--accent-soft); color: var(--accent); }
+.host-tab.off, .host-tab:disabled { opacity: 0.45; cursor: not-allowed; }
+.host-tab.off:hover { color: var(--ink-soft); background: transparent; }
+.host-tab.off .host-tab-meta { text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.06em; }
 
 .containers-drawer {
   border-top: 1px solid var(--line);

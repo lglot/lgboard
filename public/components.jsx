@@ -314,20 +314,24 @@ function StatsStrip({ hidden, visible, storageOpen, setStorageOpen, hosts, loade
     <div className="stats-wrap" style={{ '--hero-cols': heroShown.length || 1 }}>
       {multi && (
         <div className="host-tabs" role="tablist" aria-label="Host">
-          {hosts.map((h, i) => (
-            <button
-              key={h.id}
-              role="tab"
-              aria-selected={i === idx}
-              className={`host-tab ${i === idx ? 'on' : ''}`}
-              onClick={() => setHostIdx(i)}
-              title={`${h.name}${h.status ? ' · ' + h.status : ''}`}
-            >
-              <span className={`dot ${dotClass(h.status)}`} aria-hidden />
-              <span className="host-tab-name">{h.name}</span>
-              <span className="host-tab-meta">{h.cpu == null ? '—' : Math.round(h.cpu) + '%'}</span>
-            </button>
-          ))}
+          {hosts.map((h, i) => {
+            const off = h.status === 'down';
+            return (
+              <button
+                key={h.id}
+                role="tab"
+                aria-selected={i === idx}
+                className={`host-tab ${i === idx ? 'on' : ''} ${off ? 'off' : ''}`}
+                onClick={() => !off && setHostIdx(i)}
+                disabled={off}
+                title={`${h.name}${h.status ? ' · ' + h.status : ''}${off ? ' (offline)' : ''}`}
+              >
+                <span className={`dot ${dotClass(h.status)}`} aria-hidden />
+                <span className="host-tab-name">{h.name}</span>
+                <span className="host-tab-meta">{off ? 'offline' : (h.cpu == null ? '—' : Math.round(h.cpu) + '%')}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       {heroShown.length > 0 && (
