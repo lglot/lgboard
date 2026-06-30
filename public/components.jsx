@@ -999,6 +999,10 @@ function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpe
             <input type="checkbox" checked={show('showQuickActions')} onChange={e => set('showQuickActions', e.target.checked)} />
             <span>Show Quick Actions</span>
           </label>
+          <label className="tw-toggle">
+            <input type="checkbox" checked={prefs.hideDown ?? false} onChange={e => set('hideDown', e.target.checked)} />
+            <span>Hide down services</span>
+          </label>
         </div>
 
         {show('showStats') && (
@@ -1163,7 +1167,10 @@ function Dashboard({ clientPrefs }) {
   const show = (k) => prefs[k] ?? features[k] ?? true;
   const apps = cfg.apps || [];
   const categories = cfg.categories || [];
-  const favs = apps.filter(a => a.fav);
+  // Optional filter: hide services whose health is 'down' (Tweaks toggle).
+  const hideDown = prefs.hideDown ?? false;
+  const shownApps = hideDown ? apps.filter(a => (health?.[a.id]?.status) !== 'down') : apps;
+  const favs = shownApps.filter(a => a.fav);
   const themeId = normalizeThemeId(prefs.theme ?? cfg.theme?.accent ?? 'ink', prefs.mode ?? cfg.theme?.mode ?? 'dark');
   const selectedTheme = resolveTheme(themeId, prefs.customThemes || []);
   const mode = selectedTheme.forceMode ?? prefs.mode ?? cfg.theme?.mode ?? 'dark';
@@ -1178,7 +1185,8 @@ function Dashboard({ clientPrefs }) {
   const hostName = (id) =>
     id === 'local' ? (statsCfg.localName || cfg.branding?.subtitle || 'local') :
     id === 'other' ? 'Other' :
-    (remoteHosts.find(h => h.id === id)?.name || statHosts.find(h => h.id === id)?.name || id);
+    (remoteHosts.find(h => h.id === id)?.name || statHosts.find(h => h.id === id)?.name
+      || (id.charAt(0).toUpperCase() + id.slice(1)));
   // container name (lowercased) → host id, from the live stats payload (first
   // host wins on duplicate names, so local takes precedence over remotes).
   const containerHost = {};
@@ -1199,7 +1207,7 @@ function Dashboard({ clientPrefs }) {
   const appHost = (app) => app.host || matchHost(app) || 'other';
   const hostOrder = ['local', ...remoteHosts.map(h => h.id)];
   const hostRank = (id) => id === 'other' ? 9999 : (hostOrder.indexOf(id) === -1 ? 999 : hostOrder.indexOf(id));
-  const hostGroups = [...new Set(apps.map(appHost))]
+  const hostGroups = [...new Set(shownApps.map(appHost))]
     .sort((a, b) => hostRank(a) - hostRank(b))
     .map(id => ({ id, name: hostName(id) }));
 
@@ -1253,7 +1261,7 @@ function Dashboard({ clientPrefs }) {
 
       {groupBy === 'host' ? (
         hostGroups.map(host => {
-          const list = apps.filter(a => appHost(a) === host.id);
+          const list = shownApps.filter(a => appHost(a) === host.id);
           if (!list.length) return null;
           return (
             <section className="section" key={host.id}>
@@ -1268,7 +1276,7 @@ function Dashboard({ clientPrefs }) {
         })
       ) : (
         categories.map(cat => {
-          const list = apps.filter(a => a.cat === cat.id);
+          const list = shownApps.filter(a => a.cat === cat.id);
           if (!list.length) return null;
           const I = Icons[cat.icon] || Icons.server;
           return (
