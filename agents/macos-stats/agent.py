@@ -14,6 +14,7 @@ import json, os, re, socket, subprocess, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 PORT = int(os.environ.get("PORT", "8077"))
+BIND = os.environ.get("BIND", "0.0.0.0")  # set 127.0.0.1 when fronted by `tailscale serve`
 NAME = os.environ.get("LGBOARD_MAC_NAME") or socket.gethostname().split(".")[0]
 DATA_VOLUME = os.environ.get("DATA_VOLUME", "/System/Volumes/Data")
 SAMPLE_SEC = 3.0
@@ -193,8 +194,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     threading.Thread(target=sampler_loop, daemon=True).start()
     time.sleep(0.2)
-    srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"[mac-agent] '{NAME}' serving /api/stats on :{PORT}", flush=True)
+    srv = ThreadingHTTPServer((BIND, PORT), Handler)
+    print(f"[mac-agent] '{NAME}' serving /api/stats on {BIND}:{PORT}", flush=True)
     srv.serve_forever()
 
 

@@ -13,8 +13,12 @@
   <dict>
     <key>PORT</key>
     <string>8077</string>
+    <key>BIND</key>
+    <string>127.0.0.1</string>
     <key>LGBOARD_MAC_NAME</key>
     <string>Mac</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
