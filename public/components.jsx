@@ -171,7 +171,7 @@ function useHealthStatus(interval = 30_000) {
 }
 
 /* ---------------- HEADER ---------------- */
-function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setMode, showGreeting, showCommandPalette }) {
+function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setMode, showGreeting, showCommandPalette, plugins }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -208,6 +208,7 @@ function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setM
             <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd>
           </button>
         )}
+        <PluginLaunchers plugins={plugins} />
         <button className="iconbtn" onClick={() => setMode(dark ? 'light' : 'dark')} aria-label="Toggle theme">
           {dark ? <Icons.sun size={18} /> : <Icons.moon size={18} />}
         </button>
@@ -550,6 +551,15 @@ function PluginTileActions({ app, discovery, plugins }) {
     elements.push(<Comp key={p.id} app={app} discovery={discovery} />);
   });
   return elements.length > 0 ? <div className="tile-actions">{elements}</div> : null;
+}
+
+// Header-level plugin entrypoints: any plugin exposing a `Launcher` gets its
+// button rendered in the top bar. Each Launcher owns its own modal state.
+function PluginLaunchers({ plugins }) {
+  if (!plugins) return null;
+  return Object.values(plugins)
+    .filter(p => p?.Launcher)
+    .map(p => { const L = p.Launcher; return <L key={p.id} />; });
 }
 
 // Status badge — one cohesive pill (dot + latency/state), decoupled from the pin.
@@ -1232,6 +1242,7 @@ function Dashboard({ clientPrefs }) {
         setMode={switchMode}
         showGreeting={features.showGreeting !== false}
         showCommandPalette={features.showCommandPalette !== false}
+        plugins={pluginRegistry}
       />
 
       {show('showQuickActions') && (

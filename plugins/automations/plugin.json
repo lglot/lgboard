@@ -1,0 +1,25 @@
+{
+  "id": "automations",
+  "name": "Automations",
+  "version": "0.1.0",
+  "author": "lglot",
+  "description": "Read-only inventory of cron, launchd, systemd timers, n8n and agent routines across hosts, with an LLM analyst.",
+  "homepage": "https://github.com/lglot/lgboard",
+  "license": "MIT",
+  "lgboardMin": "0.4.0",
+
+  "ui": {
+    "module": "ui.jsx",
+    "launcher": { "label": "Automations", "icon": "clock" }
+  },
+
+  "server": {
+    "module": "server",
+    "endpoints": [
+      { "method": "GET", "path": "/api/_p/automations/list" },
+      { "method": "GET", "path": "/api/_p/automations/explain" }
+    ]
+  },
+
+  "permissions": ["network.fetch"]
+}
