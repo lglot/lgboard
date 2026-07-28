@@ -1,0 +1,33 @@
+{
+  "id": "host-status",
+  "name": "Host status",
+  "version": "0.1.0",
+  "author": "lglot",
+  "description": "Read-only overview of the silent failures watched by the alerts aggregator: NFS mounts from fstab, ELF architecture of the Hermes binaries, and the recent runs of every configured alert.",
+  "homepage": "https://github.com/lglot/lgboard",
+  "license": "MIT",
+  "lgboardMin": "0.4.0",
+
+  "ui": {
+    "module": "ui.jsx",
+    "launcher": { "label": "Stato host", "icon": "activity" }
+  },
+
+  "server": {
+    "module": "server",
+    "endpoints": [
+      { "method": "GET", "path": "/api/_p/host-status/overview" }
+    ]
+  },
+
+  "permissions": [],
+
+  "config": {
+    "type": "object",
+    "properties": {
+      "hostRoot":  { "type": "string", "default": "/host/root" },
+      "hostLabel": { "type": "string", "default": "lgserver-new" },
+      "homeDir":   { "type": "string", "default": "/home/lgser" }
+    }
+  }
+}
