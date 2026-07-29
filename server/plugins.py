@@ -143,15 +143,17 @@ class PluginHost:
                 ctx.config = json.loads(plugin_cfg_file.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 ctx.config = {}
+        # Drop the prior version's routes BEFORE the new one registers its own
+        # (user-overrides-core). Doing it after would wipe the routes just
+        # registered and leave the plugin answering 404 on every endpoint.
+        if existing:
+            self._routes = [r for r in self._routes if r.plugin_id != plugin_id]
         # Import server.py if declared
         server_decl = (manifest.get("server") or {}).get("module")
         if server_decl:
             module_path = plugin_dir / f"{server_decl}.py"
             if module_path.exists():
                 self._import_and_register(plugin_id, module_path, ctx)
-        # If we got here, drop any prior version of this id (user-overrides-core).
-        if existing:
-            self._routes = [r for r in self._routes if r.plugin_id != plugin_id]
         self._loaded[plugin_id] = {
             "manifest": manifest,
             "ctx": ctx,
