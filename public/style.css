@@ -13,6 +13,7 @@
   --up:       oklch(62% 0.14 145);
   --down:     oklch(60% 0.18 25);
   --idle:     oklch(70% 0.09 85);
+  --wait:     oklch(58% 0.17 300); /* blocked on someone else, never on the accent */
 
   --radius:   14px;
   --radius-lg:20px;
