@@ -52,6 +52,7 @@
   const SOURCE_LABEL = {
     jira: "jira", linear: "linear", zammad: "zammad", agents: "sessioni agente",
     pr: "pull request", llm: "raggruppamento", detail: "riassunti", due: "scadenze", push: "pubblicazione",
+    mail: "mail", slack: "slack", prOpen: "pr aperte", triage: "triage", inbox: "posta sulla bacheca",
   };
 
   const readJson = (key, fallback) => {
@@ -794,6 +795,7 @@
     ["dot", "var(--sev-reply)", "Viola: In attesa", "Qualcun altro ti deve qualcosa. Non tocca a te."],
     ["dot", "var(--ink-soft)", "Neutro: Prossimi", "Concordati ma non iniziati. Nessuna pressione di eta'."],
     ["dot", "var(--line)", "Spento: Archivio", "Messi da parte a mano, solo in questo browser."],
+    ["dot", "var(--ink-mid)", "Chip mail, slack, PR", "Lavoro pescato da un messaggio, non da un ticket."],
   ];
   const URG_LEGEND = [
     ["var(--sev-due)", "scadenza", "Una data decide: certificati, adempimenti, cut-off concordati."],
@@ -844,6 +846,15 @@
             Il collector gira sul Mac e unifica Jira, Zammad, Linear e le sessioni di Claude Code e Codex
             in un solo file. La dashboard lo legge e basta: qui non passa nessuna credenziale, e nessuna
             modifica fatta in questa pagina torna alle fonti.
+          </p>
+          <p className="local-note">
+            Mail, Slack e pull request non entrano tutte: di ognuna si guardano solo mittente, oggetto e
+            data, e un passaggio LLM tiene quel che sembra ancora lavoro aperto. Solo quelle vengono
+            lette per intero e attaccate al task giusto, o diventano una card nuova. Un verdetto vale
+            un mese, quindi la stessa mail non viene giudicata due volte.
+            {doc && doc.tokens && doc.tokens.calls > 0 && (
+              ` Ultimo giro: ${doc.tokens.calls} chiamate, ${(doc.tokens.in + doc.tokens.out).toLocaleString("it")} token${doc.tokens.exact ? "" : " (stima)"}.`
+            )}
           </p>
         </section>
       </Pane>

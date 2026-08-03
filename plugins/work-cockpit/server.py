@@ -24,7 +24,8 @@ def snapshot(ctx):
         doc = dict(EMPTY, error="Nessuno snapshot: il collector sul Mac non ha ancora pubblicato work-cockpit.json.")
     except (OSError, ValueError) as exc:
         doc = dict(EMPTY, error=f"Snapshot non leggibile: {exc}")
-    for internal in ("_sig", "_groups", "_details", "_due"):  # collector bookkeeping, not for the UI
+    # collector bookkeeping, not for the UI
+    for internal in ("_sig", "_groups", "_details", "_due", "_signals"):
         doc.pop(internal, None)
     doc["serverNow"] = int(time.time() * 1000)
     return 200, doc
