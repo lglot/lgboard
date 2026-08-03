@@ -1,9 +1,9 @@
 {
   "id": "host-status",
   "name": "Host status",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "lglot",
-  "description": "Read-only overview of the silent failures watched by the alerts aggregator: NFS mounts from fstab, ELF architecture of the Hermes binaries, and the recent runs of every configured alert.",
+  "description": "Read-only overview of the silent failures watched by the alerts aggregator: network mounts from fstab (NFS, CIFS/SMB), ELF architecture of the Hermes binaries, and the recent runs of every configured alert.",
   "homepage": "https://github.com/lglot/lgboard",
   "license": "MIT",
   "lgboardMin": "0.4.0",

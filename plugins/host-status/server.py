@@ -35,6 +35,11 @@ RUNS_PER_ALERT = 8
 PROBE_TIMEOUT = 6.0
 FALLBACK_TZ = "Europe/Rome"
 
+# Network filesystems worth probing: they are the ones that can go away or turn
+# unreadable while the apps on top keep serving an empty directory.
+# Prefixes, so nfs4 / smb3 / smbfs are covered too.
+NET_FSTYPES = ("nfs", "cifs", "smb")
+
 ELF_MACHINES = {0x02: "sparc", 0x03: "x86", 0x28: "arm", 0x3E: "x86-64",
                 0xB7: "aarch64", 0xF3: "riscv"}
 
@@ -106,7 +111,7 @@ def _check_mounts(problems: list) -> list:
         if not line or line.startswith("#"):
             continue
         f = line.split()
-        if len(f) < 3 or not f[2].startswith("nfs") or not f[1].startswith("/"):
+        if len(f) < 3 or not f[2].startswith(NET_FSTYPES) or not f[1].startswith("/"):
             continue
         mp = f[1]
         row = {"mountpoint": mp, "declared": f[0], "fstab": f[2]}
@@ -118,6 +123,14 @@ def _check_mounts(problems: list) -> list:
         else:
             row.update(mounted=True, source=live["source"], fstype=live["fstype"])
             row.update(_probe_readable(_hp(mp)))
+            # With x-systemd.automount /proc/mounts only carries the autofs stub
+            # until something touches the path. The probe just did, so re-read to
+            # report the real source instead of "systemd-1 / autofs".
+            if live["fstype"] == "autofs":
+                fresh = _mount_table()
+                real = fresh.get(str(_hp(mp))) or fresh.get(mp) or {}
+                if real.get("fstype", "autofs") != "autofs":
+                    row.update(source=real["source"], fstype=real["fstype"])
             if row["readable"]:
                 row["status"] = "ok"
             else:

@@ -2,7 +2,7 @@
 //
 // The home card answers the only question that matters (is the host healthy?);
 // the surface it opens shows the two things that today only exist inside logs
-// and Slack DMs: the health checks (NFS mounts from fstab, ELF architecture of
+// and Slack DMs: the health checks (network mounts from fstab, ELF architecture of
 // the Hermes binaries, same checks as host-health-check.sh) and what the alerts
 // aggregator has been doing (configured alerts + their recent runs).
 // Read-only, green when everything is fine, loud about what is broken.
@@ -250,7 +250,7 @@
           sub={doc ? `${doc.host} · letto ${fmtAge(doc.serverNow, Date.now())}` : 'caricamento…'}
           onReload={reload} onClose={onClose}
           kpis={doc && !doc.error ? [
-            { label: 'Mount NFS', value: mountsOk, of: `/${health?.mounts.length ?? 0}`,
+            { label: 'Mount di rete', value: mountsOk, of: `/${health?.mounts.length ?? 0}`,
               tone: mountsOk === (health?.mounts.length ?? 0) ? 'ok' : 'down' },
             { label: 'Binari Hermes', value: binsOk, of: `/${health?.binaries.length ?? 0}`,
               tone: binsOk === (health?.binaries.length ?? 0) ? 'ok' : 'down' },
@@ -270,7 +270,7 @@
                   {healthy ? 'Tutto sano' : `${issues.length} ${issues.length === 1 ? 'problema' : 'problemi'}`}
                 </div>
                 {healthy
-                  ? <div className="pm-banner-s">Mount NFS leggibili, binari Hermes sull'architettura giusta, nessun alert fallito.</div>
+                  ? <div className="pm-banner-s">Mount di rete leggibili, binari Hermes sull'architettura giusta, nessun alert fallito.</div>
                   : <ul>{issues.map((p, i) => <li key={i}>{p}</li>)}</ul>}
               </div>
             </div>
@@ -279,7 +279,7 @@
           {health && (
             <div className="pm-sect">
               <div className="pm-sect-h">
-                <h4>Mount NFS</h4><span className="count">{health.mounts.length}</span>
+                <h4>Mount di rete</h4><span className="count">{health.mounts.length}</span>
                 <span className="pm-sect-note">da /etc/fstab</span>
               </div>
               {health.mounts.map(m => (
@@ -295,7 +295,7 @@
                       : 'dichiarato in fstab, non montato', false],
                   ]} />
               ))}
-              {health.mounts.length === 0 && <div className="pm-empty">Nessun mount NFS in fstab.</div>}
+              {health.mounts.length === 0 && <div className="pm-empty">Nessun mount di rete in fstab.</div>}
             </div>
           )}
 
