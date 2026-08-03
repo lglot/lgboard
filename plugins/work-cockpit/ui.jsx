@@ -585,6 +585,9 @@
                  why: task.due.why || "una data decide questo lavoro" };
       }
     }
+    // Without a date there is nothing to be late about: a task the source gave
+    // no timestamp for must not read as idle since forever.
+    if (!task.updatedAt) return null;
     const idle = daysSince(task.updatedAt, now);
     if (task.column === "now" && task.stale) {
       return { sev: "stalled", chip: "fermo", weight: 5000 + idle, big: `${idle}g`,
