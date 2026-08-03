@@ -171,7 +171,7 @@ function useHealthStatus(interval = 30_000) {
 }
 
 /* ---------------- HEADER ---------------- */
-function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setMode, showGreeting, showCommandPalette, plugins }) {
+function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setMode, showGreeting, showCommandPalette }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30_000);
@@ -208,7 +208,6 @@ function Header({ branding, onOpenSearch, onToggleTweaks, tweaksOpen, mode, setM
             <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd><kbd>K</kbd>
           </button>
         )}
-        <PluginLaunchers plugins={plugins} />
         <button className="iconbtn" onClick={() => setMode(dark ? 'light' : 'dark')} aria-label="Toggle theme">
           {dark ? <Icons.sun size={18} /> : <Icons.moon size={18} />}
         </button>
@@ -553,13 +552,94 @@ function PluginTileActions({ app, discovery, plugins }) {
   return elements.length > 0 ? <div className="tile-actions">{elements}</div> : null;
 }
 
-// Header-level plugin entrypoints: any plugin exposing a `Launcher` gets its
-// button rendered in the top bar. Each Launcher owns its own modal state.
-function PluginLaunchers({ plugins }) {
-  if (!plugins) return null;
-  return Object.values(plugins)
-    .filter(p => p?.Launcher)
-    .map(p => { const L = p.Launcher; return <L key={p.id} />; });
+/* ---------------- PLUGIN SIGNAL BAND ----------------
+   Plugins used to be anonymous icon buttons in the header. Each one now gets a
+   card that states its headline (host healthy / jobs due this hour / work now),
+   so the answer is already on the home and the click is only for the detail.
+   Label and glyph come from plugin.json (ui.launcher), the headline from the
+   plugin's own useSignal() hook; the surface it opens is its `Surface`. */
+function PluginCard({ plugin, manifest, onOpen }) {
+  const signal = plugin.useSignal();
+  if (!signal) return null;
+  const launcher = manifest?.ui?.launcher || {};
+  const label = signal.label || launcher.label || manifest?.name || plugin.id;
+  const I = Icons[signal.icon || launcher.icon] || Icons.dot;
+  return (
+    <button className={`plug is-${signal.tone || 'ok'}`} onClick={() => onOpen(plugin.id)}
+      aria-label={`${label}: ${signal.value}`} title={label}>
+      <span className="plug-icn"><I size={20} /></span>
+      <span className="plug-body">
+        <span className="plug-label"><span className={`dot dot-${signal.dot || 'up'}`} />{label}</span>
+        <span className="plug-val">{signal.value}</span>
+        <span className="plug-meta">{signal.meta}</span>
+      </span>
+      <span className="plug-go"><Icons.chevRight size={16} /></span>
+    </button>
+  );
+}
+
+function PluginBand({ plugins, manifests, onOpen }) {
+  const list = Object.values(plugins || {}).filter(p => p?.useSignal);
+  if (!list.length) return null;
+  const byId = {};
+  (manifests || []).forEach(m => { byId[m.id] = m; });
+  return (
+    <div className="plug-row">
+      {list.map(p => <PluginCard key={p.id} plugin={p} manifest={byId[p.id]} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+// Plugin surfaces stay mounted and controlled by the band: `open` is true only
+// for the one the user clicked, so the band owns which detail view is up.
+function PluginSurfaces({ plugins, openId, onClose }) {
+  return Object.values(plugins || {})
+    .filter(p => p?.Surface)
+    .map(p => { const S = p.Surface; return <S key={p.id} open={openId === p.id} onClose={onClose} />; });
+}
+
+// Shared chrome for plugin modals (the pm-* rules in style.css): icon + title,
+// a KPI strip, an optional tools row, then a scrolling body of plugin rows.
+// Core owns it so every plugin surface reads as the same product.
+function PluginModal({ icon, tone, title, sub, kpis, tools, onReload, onClose, children }) {
+  const I = Icons[icon] || Icons.dot;
+  return (
+    <div className="modal pm" onClick={e => e.stopPropagation()}>
+      <div className="pm-head">
+        <span className={`pm-icn ${tone ? `is-${tone}` : ''}`}><I size={20} /></span>
+        <div className="pm-titles">
+          <h3>{title}</h3>
+          <div className="pm-sub">{sub}</div>
+        </div>
+        <div className="pm-actions">
+          {onReload && (
+            <button className="iconbtn" onClick={onReload} aria-label="Ricarica" title="Ricarica">
+              <Icons.refresh size={17} />
+            </button>
+          )}
+          <button className="iconbtn" onClick={onClose} aria-label="Chiudi" title="Chiudi (Esc)">
+            <Icons.close size={18} />
+          </button>
+        </div>
+      </div>
+      {kpis && (
+        <div className="pm-kpis">
+          {kpis.filter(Boolean).map(k => (
+            <div className={`pm-kpi ${k.tone ? `is-${k.tone}` : ''}`} key={k.label}>
+              <em>{k.label}</em><b>{k.value}{k.of ? <span className="of">{k.of}</span> : null}</b>
+            </div>
+          ))}
+        </div>
+      )}
+      {tools && <div className="pm-tools">{tools}</div>}
+      <div className="pm-body">{children}</div>
+    </div>
+  );
+}
+
+// Row disclosure chevron, rotates when its row is expanded.
+function PluginChevron({ open }) {
+  return <span className={`pm-chev${open ? ' open' : ''}`}><Icons.chevRight size={14} /></span>;
 }
 
 // Status badge — one cohesive pill (dot + latency/state), decoupled from the pin.
@@ -1051,6 +1131,7 @@ function Dashboard({ clientPrefs }) {
   const [addOpen, setAddOpen]       = useState(false);
   const [storeOpen, setStoreOpen]   = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [pluginOpen, setPluginOpen] = useState(null); // plugin id whose Surface is up
   const [toast, setToast]           = useState(null);
   const health = useHealthStatus(30_000);
   const discovery = useDiscovery(60_000);
@@ -1122,11 +1203,12 @@ function Dashboard({ clientPrefs }) {
       if (addOpen) { setAddOpen(false); return; }
       if (storeOpen) { setStoreOpen(false); return; }
       if (galleryOpen) { setGalleryOpen(false); return; }
+      if (pluginOpen) { setPluginOpen(null); return; }
       if (tweaksOpen) { toggleTweaks(false); return; }
     };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [cmdOpen, addOpen, storeOpen, galleryOpen, tweaksOpen, toggleTweaks]);
+  }, [cmdOpen, addOpen, storeOpen, galleryOpen, pluginOpen, tweaksOpen, toggleTweaks]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 1600); };
 
@@ -1242,7 +1324,6 @@ function Dashboard({ clientPrefs }) {
         setMode={switchMode}
         showGreeting={features.showGreeting !== false}
         showCommandPalette={features.showCommandPalette !== false}
-        plugins={pluginRegistry}
       />
 
       {show('showQuickActions') && (
@@ -1250,6 +1331,8 @@ function Dashboard({ clientPrefs }) {
           <QuickActions actions={cfg.quickActions || []} onInvoke={invokeAction} />
         </div>
       )}
+
+      <PluginBand plugins={pluginRegistry} manifests={pluginManifests} onOpen={setPluginOpen} />
 
       <StatsStrip
         hidden={!show('showStats')}
@@ -1339,6 +1422,7 @@ function Dashboard({ clientPrefs }) {
         categories={categories} onAdded={loadConfig} />
       <PluginStoreModal open={storeOpen} onClose={() => setStoreOpen(false)}
         installed={pluginManifests} />
+      <PluginSurfaces plugins={pluginRegistry} openId={pluginOpen} onClose={() => setPluginOpen(null)} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

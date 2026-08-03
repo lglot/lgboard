@@ -113,28 +113,51 @@ and lets the host enforce perms uniformly.
 
 ## Frontend contract
 
-`ui.jsx` is loaded as an ES module by the dashboard *only* when the plugin
-contributes UI. It must default-export a plugin object:
+`ui.jsx` is fetched, compiled with Babel-standalone and injected as a classic
+script *only* when the plugin contributes UI. There is no module system: the
+file is an IIFE that registers itself on a global map.
 
 ```jsx
 // /app/plugins/ssh/ui.jsx
-export default {
-  id: "ssh",
-  Page: SshPage,                         // route component
-  TileAction: SshTileAction,             // contextual button on a tile
-  match(app, discovery) {                // optional filter for the tile action
-    return discovery.byId[app.id]?.isDocker;
-  },
-};
+(function () {
+  function useSignal() { /* … */ }        // home card headline, or null while loading
+  function Surface({ open, onClose }) { } // the detail view the card opens
+  function SshTileAction({ app, discovery }) { }
+
+  window.__lgboardPlugins = window.__lgboardPlugins || {};
+  window.__lgboardPlugins.ssh = {
+    id: "ssh",
+    useSignal,                            // → { value, meta, tone, dot, icon?, label? }
+    Surface,                              // controlled: `open` is owned by the band
+    TileAction: SshTileAction,            // optional contextual button on a tile
+    match(app, discovery) {                // optional filter for the tile action
+      return discovery.byId[app.id]?.isDocker;
+    },
+  };
+})();
 ```
 
-The dashboard host gives the plugin a `pluginApi` prop with:
-- `pluginApi.fetch(path, init)` — calls the plugin's own endpoints, prefixed automatically
-- `pluginApi.config` — read-only, current plugin config
-- `pluginApi.toast(msg)`
-- `pluginApi.modal({ title, render })`
-- `pluginApi.icons` — the lgboard icon set
-- `pluginApi.theme` — `{ accent, mode, density }`
+**`useSignal()`** is a React hook rendered inside the home's plugin band. It
+returns the headline the card shows, or `null` while there is nothing to say
+(the card is not rendered). Fields:
+
+| Field | Meaning |
+|-------|---------|
+| `value` | the one line that answers the question ("Tutto sano", "37 esecuzioni entro un'ora") |
+| `meta`  | the supporting detail under it |
+| `tone`  | `ok` \| `warn` \| `down` — tints the card icon and value |
+| `dot`   | `up` \| `idle` \| `down` \| `unknown` — the status dot beside the label |
+| `label`, `icon` | override `ui.launcher.label` / `ui.launcher.icon` from `plugin.json` |
+
+**`Surface({ open, onClose })`** stays mounted and renders nothing when `open`
+is false. The dashboard owns which one is open (Esc closes it), so a plugin
+must not keep its own open state.
+
+Globals available to a plugin: `React`, `Icons`, `AppIcon`, and the shared
+plugin-modal chrome — `PluginModal` (`icon`, `tone`, `title`, `sub`, `kpis`,
+`tools`, `onReload`, `onClose`) plus `PluginChevron`. Their `pm-*` styles ship
+in the core stylesheet, so every plugin surface reads as the same product;
+anything else a plugin needs goes in its own `<style>` string.
 
 ## Permissions
 

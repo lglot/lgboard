@@ -52,6 +52,11 @@ const Icons = {
   devices:  (p) => <Ico {...p}><rect x="3" y="4" width="13" height="10" rx="1"/><rect x="14" y="9" width="7" height="11" rx="1"/><path d="M8 20h4"/></Ico>,
   star:     (p) => <Ico {...p}><path d="M12 2l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-7z"/></Ico>,
 
+  // Plugin glyphs (each plugin.json names one via ui.launcher.icon)
+  clock:    (p) => <Ico {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></Ico>,
+  pulse:    (p) => <Ico {...p}><path d="M3 12h4l2.5 6 5-13 2.5 7h4"/></Ico>,
+  briefcase:(p) => <Ico {...p}><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></Ico>,
+
   // UI
   search:   (p) => <Ico {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Ico>,
   sun:      (p) => <Ico {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></Ico>,
@@ -70,6 +75,7 @@ const Icons = {
   dot:      (p) => <Ico {...p}><circle cx="12" cy="12" r="2" fill="currentColor"/></Ico>,
   link:     (p) => <Ico {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></Ico>,
   chevDown: (p) => <Ico {...p}><path d="M6 9l6 6 6-6"/></Ico>,
+  chevRight:(p) => <Ico {...p}><path d="M9 6l6 6-6 6"/></Ico>,
   thermo:   (p) => <Ico {...p}><path d="M14 14.76V3a2 2 0 1 0-4 0v11.76a4 4 0 1 0 4 0z"/></Ico>,
   hdd:      (p) => <Ico {...p}><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 12h18M7 16h.01M11 16h.01"/></Ico>,
   github:   (p) => <Ico {...p}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></Ico>,

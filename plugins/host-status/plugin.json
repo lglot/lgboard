@@ -10,7 +10,7 @@
 
   "ui": {
     "module": "ui.jsx",
-    "launcher": { "label": "Stato host", "icon": "activity" }
+    "launcher": { "label": "Stato host", "icon": "pulse" }
   },
 
   "server": {

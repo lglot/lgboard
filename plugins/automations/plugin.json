@@ -10,7 +10,7 @@
 
   "ui": {
     "module": "ui.jsx",
-    "launcher": { "label": "Automations", "icon": "clock" }
+    "launcher": { "label": "Automazioni", "icon": "clock" }
   },
 
   "server": {

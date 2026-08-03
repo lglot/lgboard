@@ -12,10 +12,10 @@
 // Full-screen view, not a modal: deep-linkable as <dashboard>/#work-cockpit.
 //
 // Contract (see lgboard public/components.jsx):
-//   window.__lgboardPlugins['work-cockpit'] = { id, Launcher }
+//   window.__lgboardPlugins["work-cockpit"] = { id, useSignal, Surface }
 
 (function () {
-  const { useState, useEffect, useCallback } = React;
+  const { useState, useEffect, useCallback, useRef } = React;
 
   const HASH = "#work-cockpit";
   const AREAS = [["a-cube", "A-Cube"], ["homelab", "Homelab"], ["personal", "Personal"]];
@@ -390,32 +390,58 @@
     return id ? decodeURIComponent(id) : "";
   };
 
-  function Launcher() {
+  // The page lives in the URL, so it stays deep-linkable while the home band
+  // drives it: `open` is an edge (band click / Esc), the hash is the state.
+  function Surface({ open, onClose }) {
     const [task, setTask] = useState(hashTask);
-    const open = task !== null;
+    const wasOpen = useRef(open);
     useEffect(() => {
       const sync = () => setTask(hashTask());
       window.addEventListener("hashchange", sync);
       return () => window.removeEventListener("hashchange", sync);
     }, []);
-    const show = () => { window.location.hash = HASH; setTask(""); };
-    const hide = () => {
+    const clearHash = () => {
       if (window.location.hash.startsWith(HASH)) history.replaceState(null, "", window.location.pathname);
-      setTask(null);
     };
-    return (
-      <>
-        <button className="iconbtn" onClick={show} aria-label="Work cockpit" title="Work cockpit">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="3" y="7" width="18" height="13" rx="2" />
-            <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" />
-          </svg>
-        </button>
-        {open && <Page close={hide} initialTask={task} />}
-      </>
-    );
+    useEffect(() => {
+      if (open && !wasOpen.current) { window.location.hash = HASH; setTask(""); }
+      if (!open && wasOpen.current) { clearHash(); setTask(null); }
+      wasOpen.current = open;
+    }, [open]);
+    const hide = () => { clearHash(); setTask(null); onClose(); };
+    if (task === null) return null;
+    return <Page close={hide} initialTask={task} />;
+  }
+
+  function useSignal() {
+    const [doc, setDoc] = useState(null);
+    useEffect(() => {
+      const load = () => fetch("/api/_p/work-cockpit/snapshot", { cache: "no-store" })
+        .then(r => r.json())
+        .then(setDoc)
+        .catch(error => setDoc({ error: String(error) }));
+      load();
+      const timer = setInterval(load, 60000);
+      return () => clearInterval(timer);
+    }, []);
+    if (!doc) return null;
+    if (doc.error) return { tone: "down", dot: "down", value: "snapshot non leggibile", meta: doc.error };
+    const now = doc.serverNow || Date.now();
+    const count = column => AREAS.reduce((n, [area]) => n + (doc.areas?.[area]?.[column]?.length || 0), 0);
+    const [nowN, waiting, next] = COLUMNS.map(([column]) => count(column));
+    const areas = AREAS.filter(([area]) =>
+      COLUMNS.some(([column]) => (doc.areas?.[area]?.[column]?.length || 0) > 0)).length;
+    const stale = doc.generatedAt && (now - doc.generatedAt) > (doc.staleAfterMs || 7200000);
+    return {
+      tone: stale ? "warn" : "ok",
+      dot: stale ? "idle" : "up",
+      value: `${nowN} ora · ${waiting} in attesa`,
+      meta: stale
+        ? `snapshot fermo da ${age(doc.generatedAt, now)}: il collector non sta girando`
+        : `${nowN + waiting + next} item in ${areas} aree · sync ${age(doc.generatedAt, now)}`,
+    };
   }
 
   window.__lgboardPlugins = window.__lgboardPlugins || {};
-  window.__lgboardPlugins["work-cockpit"] = { id: "work-cockpit", Launcher };
+  window.__lgboardPlugins["work-cockpit"] = { id: "work-cockpit", useSignal, Surface };
 })();
