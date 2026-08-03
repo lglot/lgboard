@@ -32,7 +32,14 @@ DEFAULTS = {
 
 LOG_TAIL_BYTES = 256 * 1024
 RUNS_PER_ALERT = 8
-PROBE_TIMEOUT = 6.0
+# Generous on purpose: a first CIFS listing on spun-down HDDs measured ~5s, and
+# a check that cries wolf is as useless as one that stays silent. A genuinely
+# hung mount never answers, so this still separates slow from broken.
+PROBE_TIMEOUT = 20.0
+# The probe is the expensive part (it wakes the disks), and the home card polls
+# every minute per open browser. Health does not change by the second, so the
+# result is reused for a while instead of spinning the HDDs up around the clock.
+MOUNTS_TTL = 300.0
 FALLBACK_TZ = "Europe/Rome"
 
 # Network filesystems worth probing: they are the ones that can go away or turn
@@ -95,6 +102,20 @@ def _probe_readable(path: Path) -> dict:
     if "error" in res:
         return {"readable": False, "error": res["error"], "probeMs": res["ms"]}
     return {"readable": True, "entries": res["entries"], "probeMs": res["ms"]}
+
+
+_MOUNTS_CACHE: dict = {}
+
+
+def _mounts_cached(problems: list) -> tuple:
+    """(_check_mounts result, when it was measured). Cached for MOUNTS_TTL."""
+    now = time.time()
+    hit = _MOUNTS_CACHE.get("at")
+    if hit is None or now - hit >= MOUNTS_TTL:
+        own: list = []
+        _MOUNTS_CACHE.update(at=now, rows=_check_mounts(own), problems=own)
+    problems.extend(_MOUNTS_CACHE["problems"])
+    return _MOUNTS_CACHE["rows"], int(_MOUNTS_CACHE["at"] * 1000)
 
 
 def _check_mounts(problems: list) -> list:
@@ -302,7 +323,7 @@ def _collect_alerts() -> dict:
 
 def overview(req):
     problems: list = []
-    mounts = _check_mounts(problems)
+    mounts, mountsCheckedAt = _mounts_cached(problems)
     binaries, native = _check_binaries(problems)
     alerts = _collect_alerts()
     return 200, {
@@ -313,6 +334,7 @@ def overview(req):
             "problems": problems,
             "nativeMachine": native,
             "mounts": mounts,
+            "mountsCheckedAt": mountsCheckedAt,
             "binaries": binaries,
             "binDir": f"{_CFG['homeDir']}/.hermes/bin",
         },

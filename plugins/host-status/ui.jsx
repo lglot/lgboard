@@ -280,7 +280,10 @@
             <div className="pm-sect">
               <div className="pm-sect-h">
                 <h4>Mount di rete</h4><span className="count">{health.mounts.length}</span>
-                <span className="pm-sect-note">da /etc/fstab</span>
+                <span className="pm-sect-note">
+                  da /etc/fstab
+                  {health.mountsCheckedAt ? ` · letti ${fmtAge(health.mountsCheckedAt, now)}` : ''}
+                </span>
               </div>
               {health.mounts.map(m => (
                 <FactRow key={m.mountpoint} status={m.status} name={m.mountpoint} tag={m.fstype || m.fstab}
