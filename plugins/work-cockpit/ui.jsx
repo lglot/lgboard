@@ -818,7 +818,10 @@
           <span className="c-t">{task.title}</span>
           <span className="c-m">
             {task.sources.map(s => (
-              <span className={`tag ${s.source === "agent" ? "" : "id"}`} key={`${s.source}-${s.label}`}>{s.label}</span>
+              <span key={`${s.source}-${s.label}`}
+                    className={`tag ${/merged/i.test(s.label) ? "ok" : s.source === "agent" ? "" : "id"}`}>
+                {s.label}
+              </span>
             ))}
             {due !== null && <span className="tag due">{due < 0 ? `${-due}d overdue` : `${due}d left`}</span>}
             {task.stale && <span className="tag bad">{task.stale}</span>}
