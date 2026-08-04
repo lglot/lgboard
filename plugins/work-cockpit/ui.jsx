@@ -23,36 +23,38 @@
   const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
   const HASH = "#work-cockpit";
+  // The chrome is in English, the cards keep whatever language their source
+  // wrote: a Zammad title stays Italian because that is what the ticket says.
   const AREAS = [
-    ["a-cube", "A-Cube", "lavoro cliente · jira + zammad"],
-    ["personal", "Personal", "linear + sessioni agente"],
-    ["homelab", "Homelab", "sessioni agente + note"],
+    ["a-cube", "A-Cube", "client work · jira + zammad"],
+    ["personal", "Personal", "linear + agent sessions"],
+    ["homelab", "Homelab", "agent sessions + notes"],
   ];
   // Lane order is the reading order: what is queued, what you are on, what is
   // stuck elsewhere. 'arch' exists only as a local override.
   const LANES = [
-    ["next", "Prossimi", "non ancora iniziati"],
-    ["now", "Ora", "in corso"],
-    ["waiting", "In attesa", "su qualcun altro"],
+    ["next", "Queued", "not started yet"],
+    ["now", "On now", "in progress"],
+    ["waiting", "Waiting", "on someone else"],
   ];
-  const ARCH = ["arch", "Archivio", "messi da parte a mano"];
+  const ARCH = ["arch", "Archive", "parked by hand"];
   const ALL_LANES = LANES.concat([ARCH]);
   const LANE_NAME = Object.fromEntries(ALL_LANES.map(([k, label]) => [k, label]));
   const AREA_NAME = Object.fromEntries(AREAS.map(([k, label]) => [k, label]));
   const EMPTY_LANE = {
-    next: "Niente in coda qui.",
-    now: "Niente in corso qui.",
-    waiting: "Nessuno ti deve niente qui.",
-    arch: "Archivio vuoto.",
+    next: "Nothing queued here.",
+    now: "Nothing in progress here.",
+    waiting: "Nobody owes you anything here.",
+    arch: "Archive is empty.",
   };
   const OV_KEY = "work-cockpit.overrides.v1";
   const PREF_KEY = "work-cockpit.prefs.v1";
   const DUE_HORIZON_D = 60;  // further out than this, a deadline is not yet actionable
   const DUE_FORGET_D = 60;   // overdue this long means the date is stale, not urgent
   const SOURCE_LABEL = {
-    jira: "jira", linear: "linear", zammad: "zammad", agents: "sessioni agente",
-    pr: "pull request", llm: "raggruppamento", detail: "riassunti", due: "scadenze", push: "pubblicazione",
-    mail: "mail", slack: "slack", prOpen: "pr aperte", triage: "triage", inbox: "posta sulla bacheca",
+    jira: "jira", linear: "linear", zammad: "zammad", agents: "agent sessions",
+    pr: "pull requests", llm: "grouping", detail: "summaries", due: "deadlines", push: "publish",
+    mail: "mail", slack: "slack", prOpen: "open PRs", triage: "triage", inbox: "inbox on the board",
   };
 
   const readJson = (key, fallback) => {
@@ -520,21 +522,21 @@
   const DAY = 86400000;
 
   const age = (ms, now) => {
-    if (!ms) return "senza data";
+    if (!ms) return "no date";
     const m = Math.max(0, Math.round((now - ms) / 60000));
-    if (m < 2) return "ora";
-    if (m < 60) return `${m}m fa`;
-    if (m < 1440) return `${Math.round(m / 60)}h fa`;
-    return `${Math.round(m / 1440)}g fa`;
+    if (m < 2) return "just now";
+    if (m < 60) return `${m}m ago`;
+    if (m < 1440) return `${Math.round(m / 60)}h ago`;
+    return `${Math.round(m / 1440)}d ago`;
   };
 
   const shortAge = (ms, now) => {
-    if (!ms) return "senza data";
+    if (!ms) return "no date";
     const m = Math.max(0, Math.round((now - ms) / 60000));
-    if (m < 2) return "ora";
+    if (m < 2) return "now";
     if (m < 60) return `${m}m`;
     if (m < 1440) return `${Math.round(m / 60)}h`;
-    return `${Math.round(m / 1440)}g`;
+    return `${Math.round(m / 1440)}d`;
   };
 
   const daysSince = (ms, now) => (ms ? Math.floor((now - ms) / DAY) : 0);
@@ -543,9 +545,9 @@
 
   const dueLabel = (at, now) => {
     const days = daysUntil(at, now);
-    if (days < 0) return `scaduta da ${-days}g`;
-    if (days === 0) return "scade oggi";
-    return `${days}g alla scadenza`;
+    if (days < 0) return `${-days}d overdue`;
+    if (days === 0) return "due today";
+    return `${days}d left`;
   };
 
   // --- overrides ------------------------------------------------------------
@@ -581,9 +583,10 @@
     if (task.due && task.due.at) {
       const days = daysUntil(task.due.at, now);
       if (days <= DUE_HORIZON_D && days >= -DUE_FORGET_D) {
-        return { sev: "due", chip: days < 0 ? "scaduta" : "scadenza", weight: 10000 - days,
-                 big: `${Math.abs(days)}g`,
-                 why: task.due.why || "una data decide questo lavoro" };
+        return { sev: "due", chip: days < 0 ? "overdue" : "deadline", weight: 10000 - days,
+                 big: `${Math.abs(days)}d`,
+                 // The reason comes from the collector, in whatever language it wrote it.
+                 why: task.due.why || "a date decides this one" };
       }
     }
     // Without a date there is nothing to be late about: a task the source gave
@@ -591,12 +594,12 @@
     if (!task.updatedAt) return null;
     const idle = daysSince(task.updatedAt, now);
     if (task.column === "now" && task.stale) {
-      return { sev: "stalled", chip: "fermo", weight: 5000 + idle, big: `${idle}g`,
-               why: "in corso e non si muove. Serve una decisione, non lavoro." };
+      return { sev: "stalled", chip: "stalled", weight: 5000 + idle, big: `${idle}d`,
+               why: "In progress and nobody moving it. Needs a decision, not work." };
     }
     if (task.column === "waiting" && task.stale) {
-      return { sev: "reply", chip: "nessuna risposta", weight: 1000 + idle, big: `${idle}g`,
-               why: "hai chiesto, nessuno ha risposto. Il numero e' il silenzio." };
+      return { sev: "reply", chip: "no reply", weight: 1000 + idle, big: `${idle}d`,
+               why: "You asked, nobody answered. The number is the silence." };
     }
     return null;
   }
@@ -606,22 +609,24 @@
     (task.agents || []).forEach(a => rows.push({
       at: a.updatedAt,
       when: shortAge(a.updatedAt, now),
-      what: `${a.agent}: ${a.title || a.label || "sessione"}${a.branch ? ` su ${a.branch}` : ""}`
-        + (a.runs > 1 ? ` (${a.runs} sessioni)` : ""),
+      what: `${a.agent}: ${a.title || a.label || "session"}${a.branch ? ` on ${a.branch}` : ""}`
+        + (a.runs > 1 ? ` (${a.runs} sessions)` : ""),
     }));
     (task.prs || []).forEach(pr => rows.push({
       at: task.updatedAt,
       when: `PR #${pr.number}`,
-      what: (pr.decision || pr.state || "aperta").toLowerCase()
-        + (pr.checksFailed && pr.checksFailed.length ? `, CI rossa su ${pr.checksFailed.join(", ")}` : "")
-        + ((pr.reviews || []).length ? `, ${pr.reviews.length} review` : ""),
+      what: (pr.decision || pr.state || "open").toLowerCase()
+        + (pr.checksFailed && pr.checksFailed.length ? `, CI red on ${pr.checksFailed.join(", ")}` : "")
+        + ((pr.reviews || []).length ? `, ${pr.reviews.length} reviews` : ""),
     }));
+    // The three summaries are written by the collector: the label is ours, the
+    // sentence is whatever language it came in.
     const detail = task.detail || {};
-    if (detail.done) rows.push({ at: task.updatedAt + 1, when: "fatto", what: detail.done });
-    if (detail.todo) rows.push({ at: task.updatedAt + 2, when: "manca", what: detail.todo });
-    if (detail.next) rows.push({ at: task.updatedAt + 3, when: "prossimo passo", what: detail.next });
+    if (detail.done) rows.push({ at: task.updatedAt + 1, when: "done", what: detail.done });
+    if (detail.todo) rows.push({ at: task.updatedAt + 2, when: "missing", what: detail.todo });
+    if (detail.next) rows.push({ at: task.updatedAt + 3, when: "next step", what: detail.next });
     if (!rows.length) rows.push({ at: task.updatedAt, when: shortAge(task.updatedAt, now),
-                                  what: "ultimo movimento registrato dalla fonte." });
+                                  what: "Last movement recorded by the source." });
     return rows.sort((a, b) => (a.at || 0) - (b.at || 0));
   }
 
@@ -630,23 +635,25 @@
     const detail = task.detail || {};
     const rows = backlog(task, now);
     const resume = (task.agents || []).map(a => a.resume).filter(Boolean)[0];
+    // The scaffolding is English like the rest of the chrome; the values keep
+    // the language the sources wrote them in.
     return [
-      "Riprendi questo task con me. Prima leggilo, poi dimmi il prossimo passo concreto prima di toccare qualsiasi cosa.",
+      "Resume this task with me. Read it first, then tell me the next concrete step before you touch anything.",
       "",
       `TASK: ${task.title}`,
-      `STATO: ${LANE_NAME[task.column]} · area ${AREA_NAME[task.area] || task.area} · aggiornato ${age(task.updatedAt, now)}`,
-      refs ? `RIFERIMENTI: ${refs}` : "",
-      task.due && task.due.at ? `SCADENZA: ${dueLabel(task.due.at, now)}${task.due.why ? ` (${task.due.why})` : ""}` : "",
+      `STATE: ${LANE_NAME[task.column]} · area ${AREA_NAME[task.area] || task.area} · updated ${age(task.updatedAt, now)}`,
+      refs ? `REFS: ${refs}` : "",
+      task.due && task.due.at ? `DEADLINE: ${dueLabel(task.due.at, now)}${task.due.why ? ` (${task.due.why})` : ""}` : "",
       "",
-      "CONTESTO",
-      extraDesc || detail.done || task.note || "Nessuna descrizione registrata.",
-      detail.todo ? `\nMANCA\n${detail.todo}` : "",
+      "CONTEXT",
+      extraDesc || detail.done || task.note || "No description recorded.",
+      detail.todo ? `\nMISSING\n${detail.todo}` : "",
       "",
-      "CRONOLOGIA",
+      "BACKLOG",
       rows.map(r => `- ${r.when}: ${r.what}`).join("\n"),
-      resume ? `\nRIPRENDI CON\n${resume}` : "",
+      resume ? `\nRESUME WITH\n${resume}` : "",
       "",
-      "Comincia confermando cosa risulta gia' fatto, poi proponi il prossimo passo.",
+      "Start by confirming what is already done, then propose the next step.",
     ].filter(line => line !== "").join("\n");
   }
 
@@ -664,7 +671,7 @@
     return (
       <div className="cmd">
         <span>{text}</span>
-        <button onClick={copy}>{done ? "copiato" : "copia"}</button>
+        <button onClick={copy}>{done ? "copied" : "copy"}</button>
       </div>
     );
   }
@@ -698,7 +705,7 @@
         onDragStart={e => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", task.id); onDrag(task.id); }}
         onDragEnd={() => onDrag(null)}
       >
-        <button className="c-act" type="button" aria-label="Azioni del task"
+        <button className="c-act" type="button" aria-label="Task actions"
                 onClick={e => { e.stopPropagation(); onMenu(e.currentTarget, task); }}>
           <Dots />
         </button>
@@ -708,14 +715,14 @@
             {task.sources.map(s => (
               <span className={`tag ${s.source === "agent" ? "" : "id"}`} key={`${s.source}-${s.label}`}>{s.label}</span>
             ))}
-            {due !== null && <span className="tag due">{due < 0 ? `scaduta ${-due}g` : `${due}g`}</span>}
+            {due !== null && <span className="tag due">{due < 0 ? `${-due}d overdue` : `${due}d left`}</span>}
             {task.stale && <span className="tag bad">{task.stale}</span>}
             {pr && (
               <span className={`tag ${pr.checksFailed && pr.checksFailed.length ? "bad" : "warn"}`}>
                 PR #{pr.number}
               </span>
             )}
-            {task.local && <span className="tag local">locale</span>}
+            {task.local && <span className="tag local">local</span>}
             <span className="c-age">{shortAge(task.updatedAt, now)}</span>
           </span>
         </div>
@@ -728,7 +735,7 @@
       <div className="stack">
         {tasks.map(t => card(t))}
         {!tasks.length && <div className="empty">{EMPTY_LANE[lane]}</div>}
-        {hidden > 0 && <div className="more">+{hidden} nascosti dal filtro</div>}
+        {hidden > 0 && <div className="more">+{hidden} hidden by the filter</div>}
       </div>
     );
   }
@@ -737,7 +744,7 @@
     const head = (
       <div className="lane-h" onClick={onToggle}>
         {onToggle && (
-          <button className="lane-tog" type="button" aria-label="Apri o chiudi l'archivio">
+          <button className="lane-tog" type="button" aria-label="Toggle archive">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
@@ -774,14 +781,14 @@
           <header className="pane-h">
             <h2>{title}</h2>
             {sub && <span className="sub">{sub}</span>}
-            <button className="pane-x" type="button" aria-label="Chiudi" onClick={onClose}>
+            <button className="pane-x" type="button" aria-label="Close" onClick={onClose}>
               <Icons.close size={14} />
             </button>
           </header>
           <div className="pane-b">{children}</div>
           <footer className="pane-f">
             {foot}
-            <button className="btn go" type="button" onClick={onClose}>Chiudi</button>
+            <button className="btn go" type="button" onClick={onClose}>Close</button>
           </footer>
         </div>
       </>
@@ -789,26 +796,26 @@
   }
 
   const LEGEND = [
-    ["bar", "var(--up)", "Bordo verde: viva", "Una sessione agente e' aperta adesso."],
-    ["bar", "var(--down)", "Bordo rosso: ferma", "Non si muove niente da piu' di 7 giorni."],
-    ["dot", "var(--accent)", "Accento: Ora", "Dichiarata in corso: il lavoro che stai davvero facendo."],
-    ["dot", "var(--sev-reply)", "Viola: In attesa", "Qualcun altro ti deve qualcosa. Non tocca a te."],
-    ["dot", "var(--ink-soft)", "Neutro: Prossimi", "Concordati ma non iniziati. Nessuna pressione di eta'."],
-    ["dot", "var(--line)", "Spento: Archivio", "Messi da parte a mano, solo in questo browser."],
-    ["dot", "var(--ink-mid)", "Chip mail, slack, PR", "Lavoro pescato da un messaggio, non da un ticket."],
+    ["bar", "var(--up)", "Green edge: live", "An agent session is open on it right now."],
+    ["bar", "var(--down)", "Red edge: stale", "Nothing has moved on it for more than 7 days."],
+    ["dot", "var(--accent)", "Accent: On now", "Claimed as in progress: the work you are actually doing."],
+    ["dot", "var(--sev-reply)", "Violet: Waiting", "Somebody else owes you something. Not your move."],
+    ["dot", "var(--ink-soft)", "Neutral: Queued", "Agreed but not started. No age pressure yet."],
+    ["dot", "var(--line)", "Dim: Archive", "Parked by hand, in this browser only."],
+    ["dot", "var(--ink-mid)", "mail, slack, PR chips", "Work picked out of a message, not off a ticket."],
   ];
   const URG_LEGEND = [
-    ["var(--sev-due)", "scadenza", "Una data decide: certificati, adempimenti, cut-off concordati."],
-    ["var(--sev-reply)", "nessuna risposta", "Hai chiesto, nessuno ha risposto. Il numero e' il silenzio."],
-    ["var(--sev-stalled)", "fermo", "In corso senza attivita'. Serve una decisione, non lavoro."],
+    ["var(--sev-due)", "deadline", "A date decides it: certificates, filings, agreed cut-offs."],
+    ["var(--sev-reply)", "no reply", "You asked, nobody answered. The number is the silence."],
+    ["var(--sev-stalled)", "stalled", "In progress with no activity. Needs a decision, not work."],
   ];
 
   function InfoPane({ doc, total, now, onClose }) {
     return (
-      <Pane title="Legenda e sorgenti" onClose={onClose}
-            foot={<span>letto {age(doc && doc.generatedAt, now)} · {total} item nello snapshot</span>}>
+      <Pane title="Legend and sources" onClose={onClose}
+            foot={<span>read {age(doc && doc.generatedAt, now)} · {total} items in the snapshot</span>}>
         <section>
-          <h3>Cosa dicono i colori</h3>
+          <h3>What the colours mean</h3>
           <div className="legend">
             {LEGEND.map(([kind, color, title, body]) => (
               <div className="lg" key={title}>
@@ -819,7 +826,7 @@
           </div>
         </section>
         <section>
-          <h3>Chip di urgenza</h3>
+          <h3>Urgency chips</h3>
           <div className="legend">
             {URG_LEGEND.map(([color, title, body]) => (
               <div className="lg" key={title}>
@@ -830,7 +837,7 @@
           </div>
         </section>
         <section>
-          <h3>Sorgenti</h3>
+          <h3>Sources</h3>
           <div className="srcs">
             {Object.entries((doc && doc.sources) || {}).map(([key, status]) => (
               <span className={`src ${status.status}`} key={key}>
@@ -841,19 +848,19 @@
           </div>
         </section>
         <section>
-          <h3>Da dove arrivano</h3>
+          <h3>Where this comes from</h3>
           <p className="local-note">
-            Il collector gira sul Mac e unifica Jira, Zammad, Linear e le sessioni di Claude Code e Codex
-            in un solo file. La dashboard lo legge e basta: qui non passa nessuna credenziale, e nessuna
-            modifica fatta in questa pagina torna alle fonti.
+            The collector runs on the Mac and folds Jira, Zammad, Linear and the open Claude Code and
+            Codex sessions into one file. The dashboard only reads it: no credential lives here, and
+            nothing changed on this page travels back to the sources.
           </p>
           <p className="local-note">
-            Mail, Slack e pull request non entrano tutte: di ognuna si guardano solo mittente, oggetto e
-            data, e un passaggio LLM tiene quel che sembra ancora lavoro aperto. Solo quelle vengono
-            lette per intero e attaccate al task giusto, o diventano una card nuova. Un verdetto vale
-            un mese, quindi la stessa mail non viene giudicata due volte.
+            Mail, Slack and pull requests do not all get in. Only sender, subject and date are looked
+            at, and one LLM pass keeps what still looks like open work. Those alone are read in full
+            and attached to the task they belong to, or turned into a new card. A verdict lasts a
+            month, so the same mail is never judged twice.
             {doc && doc.tokens && doc.tokens.calls > 0 && (
-              ` Ultimo giro: ${doc.tokens.calls} chiamate, ${(doc.tokens.in + doc.tokens.out).toLocaleString("it")} token${doc.tokens.exact ? "" : " (stima)"}.`
+              ` Last run: ${doc.tokens.calls} calls, ${(doc.tokens.in + doc.tokens.out).toLocaleString("en")} tokens${doc.tokens.exact ? "" : " (estimated)"}.`
             )}
           </p>
         </section>
@@ -863,53 +870,53 @@
 
   function SettingsPane({ prefs, setPref, overrideCount, onClearOverrides, onClose }) {
     return (
-      <Pane title="Impostazioni" sub="salvate solo su questo dispositivo" onClose={onClose}
-            foot={<span>{overrideCount ? `${overrideCount} modifiche locali` : "nessuna modifica locale"}</span>}>
+      <Pane title="Settings" sub="stored on this device only" onClose={onClose}
+            foot={<span>{overrideCount ? `${overrideCount} local edits` : "no local edits"}</span>}>
         <section>
-          <h3>Vista</h3>
+          <h3>View</h3>
           <div className="rows">
             <div className="row">
-              <span className="row-b"><b>Layout</b><span>come sono disposte le lane</span></span>
+              <span className="row-b"><b>Layout</b><span>how the lanes are laid out</span></span>
               <div className="seg">
-                {[["cols", "Colonne"], ["areas", "Per area"], ["tabs", "Schede"]].map(([v, label]) => (
+                {[["cols", "Columns"], ["areas", "By area"], ["tabs", "Tabs"]].map(([v, label]) => (
                   <button key={v} type="button" className={prefs.view === v ? "on" : ""}
                           onClick={() => setPref("view", v)}>{label}</button>
                 ))}
               </div>
             </div>
             <div className="row">
-              <span className="row-b"><b>Archivio aperto</b><span>apri la lane archivio al caricamento</span></span>
+              <span className="row-b"><b>Archive expanded</b><span>open the archive lane on load</span></span>
               <button className={`tog${prefs.arch ? " on" : ""}`} type="button" aria-pressed={!!prefs.arch}
-                      aria-label="Archivio aperto" onClick={() => setPref("arch", !prefs.arch)} />
+                      aria-label="Archive expanded" onClick={() => setPref("arch", !prefs.arch)} />
             </div>
             <div className="row">
-              <span className="row-b"><b>Card compatte</b><span>meno spazio, piu' roba a schermo</span></span>
+              <span className="row-b"><b>Compact cards</b><span>tighter padding, more on screen</span></span>
               <button className={`tog${prefs.dense ? " on" : ""}`} type="button" aria-pressed={!!prefs.dense}
-                      aria-label="Card compatte" onClick={() => setPref("dense", !prefs.dense)} />
+                      aria-label="Compact cards" onClick={() => setPref("dense", !prefs.dense)} />
             </div>
             <div className="row">
-              <span className="row-b"><b>Banda urgenze</b><span>mostra "prima di tutto" sopra il board</span></span>
+              <span className="row-b"><b>Urgent band</b><span>show "needs you first" above the board</span></span>
               <button className={`tog${prefs.urg ? " on" : ""}`} type="button" aria-pressed={!!prefs.urg}
-                      aria-label="Banda urgenze" onClick={() => setPref("urg", !prefs.urg)} />
+                      aria-label="Urgent band" onClick={() => setPref("urg", !prefs.urg)} />
             </div>
           </div>
         </section>
         <section>
-          <h3>Modifiche locali</h3>
+          <h3>Local edits</h3>
           <div className="rows">
             <div className="row">
               <span className="row-b">
-                <b>{overrideCount} card modificate qui</b>
-                <span>spostamenti, titoli, archiviazioni ed eliminazioni</span>
+                <b>{overrideCount} cards edited here</b>
+                <span>moves, titles, archived and hidden ones</span>
               </span>
               <button className="btn" type="button" disabled={!overrideCount} onClick={onClearOverrides}>
-                Ripristina lo snapshot
+                Reset to the snapshot
               </button>
             </div>
           </div>
           <p className="local-note">
-            Vivono in questo browser e non tornano a Jira, Linear o Zammad. Se il collector cambia lo stato
-            di un task alla fonte, la modifica locale resta sopra finche' non la ripristini.
+            They live in this browser and never reach Jira, Linear or Zammad. If the collector changes a
+            task at the source, the local edit stays on top of it until you reset.
           </p>
         </section>
       </Pane>
@@ -925,7 +932,7 @@
     const [copied, setCopied] = useState(false);
 
     const detail = task.detail || {};
-    const baseDesc = task.localDesc || detail.done || task.note || "Nessuna descrizione registrata per questo item.";
+    const baseDesc = task.localDesc || detail.done || task.note || "No description recorded for this item yet.";
 
     useEffect(() => {
       setEditing(false);
@@ -963,7 +970,7 @@
                 .filter(Boolean).join(" · ")}
             </div>
             {editing
-              ? <input className="edit-t" value={title} onChange={e => setTitle(e.target.value)} aria-label="Titolo" />
+              ? <input className="edit-t" value={title} onChange={e => setTitle(e.target.value)} aria-label="Title" />
               : <h2 className="sheet-t">{task.title}</h2>}
             <div className="sheet-tags">
               {task.sources.map(s => (s.url
@@ -971,16 +978,16 @@
                 : <span className="tag" key={s.label}>{s.label}</span>))}
               {task.state && <span className="tag">{task.state}</span>}
               {task.due && task.due.at && <span className="tag due">{dueLabel(task.due.at, now)}</span>}
-              {task.local && <span className="tag local">modificata qui</span>}
+              {task.local && <span className="tag local">edited here</span>}
             </div>
-            <button className="sheet-x" type="button" aria-label="Chiudi" onClick={onClose}>
+            <button className="sheet-x" type="button" aria-label="Close" onClick={onClose}>
               <Icons.close size={15} />
             </button>
           </header>
 
           <div className="sheet-b">
             <section>
-              <h3>Stato</h3>
+              <h3>Status</h3>
               <div className="seg">
                 {ALL_LANES.map(([lane, label]) => (
                   <button key={lane} type="button" className={task.column === lane ? "on" : ""}
@@ -988,46 +995,46 @@
                 ))}
               </div>
               <p className="local-note">
-                Spostare una card la muove solo qui. Lo stato alla fonte resta {task.state || "invariato"}.
+                Moving a card moves it here only. The state at the source stays {task.state || "unchanged"}.
               </p>
             </section>
 
             <section>
-              <h3>Descrizione</h3>
+              <h3>Description</h3>
               {editing
                 ? <textarea className="edit-d" value={desc} placeholder={baseDesc}
-                            onChange={e => setDesc(e.target.value)} aria-label="Descrizione" />
+                            onChange={e => setDesc(e.target.value)} aria-label="Description" />
                 : <p className="sheet-desc">{baseDesc}</p>}
             </section>
 
             {(detail.todo || detail.next || task.due) && (
               <section>
-                <h3>Cosa manca</h3>
+                <h3>What is left</h3>
                 <dl>
-                  {detail.todo && <><dt>manca</dt><dd>{detail.todo}</dd></>}
-                  {detail.next && <><dt>prossimo</dt><dd>{detail.next}</dd></>}
+                  {detail.todo && <><dt>missing</dt><dd>{detail.todo}</dd></>}
+                  {detail.next && <><dt>next</dt><dd>{detail.next}</dd></>}
                   {task.due && task.due.at && (
-                    <><dt>scadenza</dt><dd>{dueLabel(task.due.at, now)}{task.due.why ? ` · ${task.due.why}` : ""}
-                      {task.due.source === "inferred" ? " (dedotta dal testo)" : ""}</dd></>
+                    <><dt>deadline</dt><dd>{dueLabel(task.due.at, now)}{task.due.why ? ` · ${task.due.why}` : ""}
+                      {task.due.source === "inferred" ? " (read out of the text)" : ""}</dd></>
                   )}
                 </dl>
               </section>
             )}
 
             <section>
-              <h3>Dettaglio</h3>
+              <h3>Detail</h3>
               <dl>
                 <dt>area</dt><dd>{AREA_NAME[task.area] || task.area}</dd>
-                <dt>stato</dt><dd>{task.state || "senza stato"}</dd>
-                <dt>aggiornato</dt><dd>{age(task.updatedAt, now)}</dd>
-                {task.timeSpentMs > 0 && <><dt>tempo</dt><dd>{hours(task.timeSpentMs)} di sessioni agente</dd></>}
-                {task.note && <><dt>nota</dt><dd>{task.note}</dd></>}
+                <dt>state</dt><dd>{task.state || "no state"}</dd>
+                <dt>updated</dt><dd>{age(task.updatedAt, now)}</dd>
+                {task.timeSpentMs > 0 && <><dt>time</dt><dd>{hours(task.timeSpentMs)} of agent sessions</dd></>}
+                {task.note && <><dt>note</dt><dd>{task.note}</dd></>}
               </dl>
             </section>
 
             {(task.prs || []).length > 0 && (
               <section>
-                <h3>Pull request</h3>
+                <h3>Pull requests</h3>
                 {task.prs.map(pr => (
                   <div key={pr.url} style={{ marginBottom: 12 }}>
                     <a className="btn" href={pr.url} target="_blank" rel="noopener">
@@ -1035,8 +1042,8 @@
                     </a>
                     <p className="local-note">
                       {pr.checksFailed && pr.checksFailed.length
-                        ? `CI rossa: ${pr.checksFailed.join(", ")}`
-                        : `${pr.checksTotal || 0} check, nessuno fallito`}
+                        ? `CI red: ${pr.checksFailed.join(", ")}`
+                        : `${pr.checksTotal || 0} checks, none failed`}
                     </p>
                     {(pr.reviews || []).map((r, i) => (
                       <p className="local-note" key={`r${i}`}>
@@ -1050,13 +1057,13 @@
 
             {(task.agents || []).length > 0 && (
               <section>
-                <h3>Sessioni agente</h3>
+                <h3>Agent sessions</h3>
                 {task.agents.map(a => (
                   <div key={a.sessionId || a.label} style={{ marginBottom: 14 }}>
                     <dl>
-                      <dt>agente</dt><dd>{a.agent}{a.runs > 1 ? ` · ${a.runs} sessioni` : ""}</dd>
+                      <dt>agent</dt><dd>{a.agent}{a.runs > 1 ? ` · ${a.runs} sessions` : ""}</dd>
                       <dt>workspace</dt><dd className="mono">{a.cwd}{a.branch ? ` · ${a.branch}` : ""}</dd>
-                      <dt>attivita'</dt>
+                      <dt>activity</dt>
                       <dd>{a.timeSpentMs > 0 ? `${hours(a.timeSpentMs)} · ` : ""}{age(a.updatedAt, now)}</dd>
                       {a.lastPrompt && <><dt>prompt</dt><dd className="mono">{a.lastPrompt}</dd></>}
                     </dl>
@@ -1067,7 +1074,7 @@
             )}
 
             <section>
-              <h3>Cronologia</h3>
+              <h3>Backlog</h3>
               <ol className="log">
                 {rows.map((r, i) => (
                   <li key={i}><i /><div><time>{r.when}</time><span>{r.what}</span></div></li>
@@ -1077,11 +1084,11 @@
 
             {(task.create && (task.create.jira || task.create.linear)) && (
               <section>
-                <h3>Nessun ticket per questo lavoro</h3>
+                <h3>No ticket for this work</h3>
                 <p className="sheet-desc">{task.create.body}</p>
                 <div className="sheet-tags" style={{ marginTop: 12 }}>
-                  {task.create.jira && <a className="btn" href={task.create.jira} target="_blank" rel="noopener">Crea in Jira</a>}
-                  {task.create.linear && <a className="btn" href={task.create.linear} target="_blank" rel="noopener">Crea in Linear</a>}
+                  {task.create.jira && <a className="btn" href={task.create.jira} target="_blank" rel="noopener">Create in Jira</a>}
+                  {task.create.linear && <a className="btn" href={task.create.linear} target="_blank" rel="noopener">Create in Linear</a>}
                 </div>
               </section>
             )}
@@ -1092,10 +1099,10 @@
                         aria-expanded={promptOpen} onClick={() => setPromptOpen(!promptOpen)}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                        strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-                  Prompt di ripresa
+                  Resume prompt
                 </button>
                 <button className={`p-copy${copied ? " done" : ""}`} type="button" onClick={copyPrompt}>
-                  <Icons.copy size={12} />{copied ? "copiato" : "copia"}
+                  <Icons.copy size={12} />{copied ? "copied" : "copy"}
                 </button>
               </h3>
               {promptOpen && <pre className="pbox">{prompt}</pre>}
@@ -1108,15 +1115,15 @@
               {editing ? (
                 <>
                   <button type="button" onClick={() => { setEditing(false); setTitle(task.title); setDesc(task.localDesc || ""); }}>
-                    Annulla
+                    Cancel
                   </button>
-                  <button type="button" className="primary" onClick={save}>Salva qui</button>
+                  <button type="button" className="primary" onClick={save}>Save here</button>
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={() => { setDesc(task.localDesc || ""); setEditing(true); }}>Modifica</button>
-                  {task.column !== "arch" && <button type="button" onClick={() => onArchive(task)}>Archivia</button>}
-                  <button type="button" className="danger" onClick={() => onDelete(task)}>Elimina</button>
+                  <button type="button" onClick={() => { setDesc(task.localDesc || ""); setEditing(true); }}>Edit</button>
+                  {task.column !== "arch" && <button type="button" onClick={() => onArchive(task)}>Archive</button>}
+                  <button type="button" className="danger" onClick={() => onDelete(task)}>Hide</button>
                 </>
               )}
             </div>
@@ -1260,19 +1267,18 @@
       moveTo(task.id, lane);
       setJustId(task.id);
       setTimeout(() => setJustId(null), 800);
-      showToast(lane === "arch" ? "Spostata in archivio, solo qui." : `Spostata in ${LANE_NAME[lane]}, solo qui.`,
-                () => moveTo(task.id, from));
+      showToast(`Moved to ${LANE_NAME[lane]}, here only.`, () => moveTo(task.id, from));
     }, [moveTo, showToast]);
 
     const remove = useCallback(task => {
       patchOverride(task.id, { deleted: true });
       if (selectedId === task.id) select(null);
-      showToast("Card nascosta, solo qui.", () => patchOverride(task.id, { deleted: null }));
+      showToast("Card hidden, here only.", () => patchOverride(task.id, { deleted: null }));
     }, [patchOverride, select, selectedId, showToast]);
 
     const edit = useCallback((task, title, desc) => {
       patchOverride(task.id, { title: title === (base[task.id] || {}).title ? null : title, desc: desc || null });
-      showToast("Testo salvato in questo browser.");
+      showToast("Text saved in this browser.");
     }, [base, patchOverride, showToast]);
 
     // keyboard: '/' focuses the search, Esc clears it or closes the page
@@ -1339,18 +1345,18 @@
               <h1>Work cockpit</h1>
               <div className="sub">
                 {doc && doc.generatedAt
-                  ? `letto ${age(doc.generatedAt, now)} · ${areaCounts.all} item`
-                  : "caricamento dello snapshot…"}
+                  ? `read ${age(doc.generatedAt, now)} · ${areaCounts.all} items`
+                  : "loading the snapshot…"}
               </div>
             </div>
             <div className="head-a">
-              <button className="iconbtn" type="button" title="Legenda e sorgenti" aria-label="Legenda e sorgenti"
+              <button className="iconbtn" type="button" title="Legend and sources" aria-label="Legend and sources"
                       onClick={() => setPane("info")}><InfoGlyph /></button>
-              <button className="iconbtn" type="button" title="Impostazioni" aria-label="Impostazioni"
+              <button className="iconbtn" type="button" title="Settings" aria-label="Settings"
                       onClick={() => setPane("set")}><Icons.sliders size={17} /></button>
-              <button className="iconbtn" type="button" title="Ricarica" aria-label="Ricarica"
+              <button className="iconbtn" type="button" title="Reload" aria-label="Reload"
                       onClick={reload}><Icons.refresh size={17} /></button>
-              <button className="iconbtn" type="button" title="Chiudi (Esc)" aria-label="Chiudi"
+              <button className="iconbtn" type="button" title="Close (Esc)" aria-label="Close"
                       onClick={close}><Icons.close size={18} /></button>
             </div>
           </header>
@@ -1358,30 +1364,30 @@
           {doc && doc.error && <div className="banner err">{doc.error}</div>}
           {stale && (
             <div className="banner">
-              Snapshot fermo da {age(doc.generatedAt, now)}: il collector sul Mac non sta girando.
-              I dati qui sotto sono vecchi.
+              Snapshot stuck for {shortAge(doc.generatedAt, now)}: the collector on the Mac is not
+              running. Everything below is old.
             </div>
           )}
 
           {hero && (
             <div className="top">
               <button className="hero" type="button" onClick={() => select(hero)}
-                      aria-label="Apri l'ultimo task che si e' mosso">
-                <span className="hero-k"><i />Riprendi</span>
+                      aria-label="Open the last task that moved">
+                <span className="hero-k"><i />Continue</span>
                 <span className="hero-t">{hero.title}</span>
                 <span className="hero-b">
                   <span className="hero-area">{AREA_NAME[hero.area] || hero.area}</span>
                   <span className="hero-sep">·</span>
                   <span className="hero-m">
                     {(hero.agents || []).length
-                      ? `sessione ${hero.agents[0].agent} · ${hero.agents[0].branch || hero.agents[0].cwd || hero.agents[0].label}`
+                      ? `${hero.agents[0].agent} session · ${hero.agents[0].branch || hero.agents[0].cwd || hero.agents[0].label}`
                       : hero.sources.map(s => s.label).join(" · ")}
                   </span>
-                  {staleCount > 0 && <span className="hero-stale">{staleCount} fermi</span>}
+                  {staleCount > 0 && <span className="hero-stale">{staleCount} stale</span>}
                 </span>
                 <span className="hero-when">
                   <b>{shortAge(hero.updatedAt, now)}</b>
-                  <em>{(hero.agents || []).length ? "viva" : "fa"}</em>
+                  <em>{(hero.agents || []).length ? "live" : "ago"}</em>
                 </span>
                 <span className="hero-go"><Icons.chevRight size={15} /></span>
               </button>
@@ -1390,7 +1396,7 @@
 
           {prefs.urg && (
             <section className="urg">
-              <div className="urg-h"><span>Prima di tutto</span><span className="n">{urgent.length}</span></div>
+              <div className="urg-h"><span>Needs you first</span><span className="n">{urgent.length}</span></div>
               {urgent.length ? (
                 <div className="urg-l">
                   {urgent.map(({ task, urg }) => (
@@ -1406,7 +1412,7 @@
                   ))}
                 </div>
               ) : (
-                <div className="urg-none">Niente che aspetti te in questa area.</div>
+                <div className="urg-none">Nothing waiting on you in this area.</div>
               )}
             </section>
           )}
@@ -1414,22 +1420,22 @@
           <div className="toolbar">
             <label className="search">
               <Icons.search size={15} />
-              <input ref={searchRef} type="search" value={query} placeholder="cerca task, ticket, note"
-                     autoComplete="off" aria-label="Cerca i task" onChange={e => setQuery(e.target.value)} />
+              <input ref={searchRef} type="search" value={query} placeholder="Search tasks, tickets, notes"
+                     autoComplete="off" aria-label="Search tasks" onChange={e => setQuery(e.target.value)} />
               {query
-                ? <button className="q-x" type="button" aria-label="Pulisci la ricerca" onClick={() => setQuery("")}>
+                ? <button className="q-x" type="button" aria-label="Clear search" onClick={() => setQuery("")}>
                     <Icons.close size={13} />
                   </button>
                 : <span className="q-k">/</span>}
             </label>
             <div className="filter" role="tablist" aria-label="Area">
-              {[["all", "Tutte"]].concat(AREAS.map(([k, label]) => [k, label])).map(([key, label]) => (
+              {[["all", "All"]].concat(AREAS.map(([k, label]) => [k, label])).map(([key, label]) => (
                 <button key={key} role="tab" aria-selected={area === key} className={area === key ? "on" : ""}
                         onClick={() => setArea(key)}>{label} <em>{areaCounts[key] || 0}</em></button>
               ))}
             </div>
-            <div className="viewseg" role="group" aria-label="Layout del board">
-              {[["cols", "Colonne"], ["areas", "Per area"], ["tabs", "Schede"]].map(([v, label]) => (
+            <div className="viewseg" role="group" aria-label="Board layout">
+              {[["cols", "Columns"], ["areas", "By area"], ["tabs", "Tabs"]].map(([v, label]) => (
                 <button key={v} type="button" className={prefs.view === v ? "on" : ""}
                         onClick={() => setPref("view", v)}>{label}</button>
               ))}
@@ -1494,7 +1500,7 @@
                 {status.count != null ? ` (${status.count})` : ""}
               </span>
             ))}
-            <button className="btn" type="button" onClick={() => setPane("info")}>Legenda e sorgenti</button>
+            <button className="btn" type="button" onClick={() => setPane("info")}>Legend and sources</button>
           </div>
         </div>
 
@@ -1514,21 +1520,21 @@
 
         {menu && (
           <div className="menu" style={{ left: menu.left, top: menu.top }}>
-            <div className="menu-k">Sposta in</div>
+            <div className="menu-k">Move to</div>
             {LANES.map(([lane, label]) => (
               <button key={lane} type="button" className={menu.task.column === lane ? "on" : ""}
                       onClick={() => { move(menu.task, lane); setMenu(null); }}>{label}</button>
             ))}
             <div className="menu-sep" />
-            <button type="button" onClick={() => { move(menu.task, "arch"); setMenu(null); }}>Archivia</button>
-            <button type="button" className="danger" onClick={() => { remove(menu.task); setMenu(null); }}>Nascondi</button>
+            <button type="button" onClick={() => { move(menu.task, "arch"); setMenu(null); }}>Archive</button>
+            <button type="button" className="danger" onClick={() => { remove(menu.task); setMenu(null); }}>Hide</button>
           </div>
         )}
 
         {toast && (
           <div className="toast">
             <span>{toast.msg}</span>
-            {toast.undo && <button type="button" onClick={() => { toast.undo(); setToast(null); }}>annulla</button>}
+            {toast.undo && <button type="button" onClick={() => { toast.undo(); setToast(null); }}>undo</button>}
           </div>
         )}
       </div>
