@@ -56,6 +56,12 @@
     pr: "pull requests", llm: "grouping", detail: "summaries", due: "deadlines", push: "publish",
     mail: "mail", slack: "slack", prOpen: "open PRs", triage: "triage", inbox: "inbox on the board",
   };
+  // Where a card came from, spelled out: a bare `#331994` says nothing about
+  // which system it lives in or what to click.
+  const SOURCE_NAME = {
+    jira: "Jira", zammad: "Zammad", linear: "Linear", mail: "Mail", slack: "Slack",
+    pr: "Pull request", agent: "Agent",
+  };
 
   const readJson = (key, fallback) => {
     try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; }
@@ -348,10 +354,29 @@
   .wc-page .sheet-t { margin: 9px 0 0; font-family: var(--ff-display); font-size: clamp(20px, 2.6vw, 27px);
     font-weight: 500; letter-spacing: -0.025em; line-height: 1.24; padding-right: 42px; text-wrap: pretty; }
   .wc-page .sheet-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
-  .wc-page .sheet-x { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px;
+  .wc-page .sheet-hx { position: absolute; top: 18px; right: 18px; display: flex; gap: 8px;
+    /* the menu hangs off this, so it anchors here and not on the header */
+    isolation: isolate; }
+  .wc-page .sheet-hx > .sheet-menu { position: absolute; }
+  .wc-page .sheet-x { width: 34px; height: 34px; flex: none;
     border-radius: 50%; border: 1px solid var(--line); background: var(--bg-elev); color: var(--ink-mid);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
   .wc-page .sheet-x:hover { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
+  .wc-page .sheet-x.danger { color: var(--down); }
+  .wc-page .sheet-x.danger:hover, .wc-page .sheet-x.danger.on {
+    background: color-mix(in oklab, var(--down) 10%, var(--bg-elev));
+    border-color: color-mix(in oklab, var(--down) 45%, var(--line)); color: var(--down); }
+  .wc-page .sheet-menu { position: absolute; top: 42px; right: 0; z-index: 5; width: 210px; padding: 6px;
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow-2); animation: wc-fade 120ms ease; }
+  .wc-page .sheet-menu button { display: flex; width: 100%; text-align: left; border: none;
+    background: none; cursor: pointer; padding: 8px; border-radius: 7px; font-family: var(--ff-ui);
+    font-size: 13px; color: var(--ink-mid); }
+  .wc-page .sheet-menu button:hover { background: var(--line-2); color: var(--ink); }
+  .wc-page .sheet-menu button.danger:hover { color: var(--down); }
+  .wc-page .status-f { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+  .wc-page .status-f .local-note { flex: 1; min-width: 200px; }
+  .wc-page .status-f .btn { flex: none; margin-top: 4px; }
   /* Scroll without the bar: the sheet is sized to fit, and when a task really
      is longer than the screen it still moves under the wheel. */
   .wc-page .sheet-b, .wc-page .pane-b { overflow-y: auto; overflow-x: hidden;
@@ -387,6 +412,20 @@
     text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); }
   .wc-page .log span { display: block; font-size: 13.5px; line-height: 1.5; margin-top: 3px; text-wrap: pretty; }
   .wc-page .prompt-sec > h3, .wc-page .agents-sec > h3 { display: flex; align-items: center; gap: 10px; }
+  .wc-page .srclist { display: flex; flex-direction: column; }
+  .wc-page .srcrow { display: flex; align-items: baseline; gap: 12px; padding: 9px 2px;
+    border-top: 1px solid var(--line-2); color: var(--ink); text-decoration: none; }
+  .wc-page .srclist .srcrow:first-child { border-top: none; }
+  .wc-page a.srcrow:hover { color: var(--accent); }
+  .wc-page a.srcrow:hover b { color: var(--accent); }
+  .wc-page .srcrow b { flex: 0 0 96px; font-weight: 500; font-size: 13.5px; letter-spacing: -0.01em; }
+  .wc-page .srcrow span { font-family: var(--ff-mono); font-size: 12.5px; color: var(--ink-mid);
+    overflow-wrap: anywhere; }
+  .wc-page .srcrow em { margin-left: auto; font-style: normal; font-family: var(--ff-mono);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft);
+    text-align: right; }
+  .wc-page .srcrow svg { flex: none; color: var(--ink-soft); align-self: center; }
+  .wc-page a.srcrow:hover svg { color: var(--accent); }
   .wc-page .disc-n { font-family: var(--ff-mono); font-size: 10px; color: var(--ink-soft);
     border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
   .wc-page .disc { display: inline-flex; align-items: center; gap: 7px; border: none; background: none;
@@ -689,6 +728,13 @@
     </svg>
   );
 
+  const Bin = () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
+         strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13" />
+    </svg>
+  );
+
   const InfoGlyph = () => (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
          strokeLinecap="round">
@@ -937,10 +983,15 @@
     const [desc, setDesc] = useState("");
     const [promptOpen, setPromptOpen] = useState(false);
     const [agentsOpen, setAgentsOpen] = useState(false);
+    const [pendingLane, setPendingLane] = useState(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const detail = task.detail || {};
-    const baseDesc = task.localDesc || detail.done || task.note || "No description recorded for this item yet.";
+    // What the task is, not what was done to it: `done` belongs in the backlog,
+    // and reading it here told you the files touched but never the problem.
+    const baseDesc = task.localDesc || detail.what || task.note || detail.done
+      || "No description recorded for this item yet.";
     // A card built from sessions alone has no state at a source: what looks like
     // one is the name of the agent that produced it.
     const fromAgent = task.sources.every(s => s.source === "agent");
@@ -948,8 +999,17 @@
     useEffect(() => {
       setEditing(false);
       setTitle(task.title);
-      setDesc(task.localDesc || (task.localDesc === "" ? "" : ""));
+      setDesc(task.localDesc || "");
+      setPendingLane(null);
+      setMenuOpen(false);
     }, [task.id, task.title, task.localDesc]);
+
+    useEffect(() => {
+      if (!menuOpen) return;
+      const off = e => { if (!e.target.closest(".sheet-hx")) setMenuOpen(false); };
+      window.addEventListener("mousedown", off);
+      return () => window.removeEventListener("mousedown", off);
+    }, [menuOpen]);
 
     useEffect(() => {
       const esc = e => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
@@ -984,16 +1044,30 @@
               ? <input className="edit-t" value={title} onChange={e => setTitle(e.target.value)} aria-label="Title" />
               : <h2 className="sheet-t">{task.title}</h2>}
             <div className="sheet-tags">
-              {task.sources.map(s => (s.url
-                ? <a className="tag id" href={s.url} target="_blank" rel="noopener" key={s.label}>{s.label}</a>
-                : <span className="tag" key={s.label}>{s.label}</span>))}
               {task.state && !fromAgent && <span className="tag">{task.state}</span>}
               {task.due && task.due.at && <span className="tag due">{dueLabel(task.due.at, now)}</span>}
               {task.local && <span className="tag local">edited here</span>}
             </div>
-            <button className="sheet-x" type="button" aria-label="Close" onClick={onClose}>
-              <Icons.close size={15} />
-            </button>
+            <div className="sheet-hx">
+              <button className={`sheet-x danger${menuOpen ? " on" : ""}`} type="button"
+                      aria-label="Remove this card" aria-expanded={menuOpen}
+                      onClick={() => setMenuOpen(!menuOpen)}><Bin /></button>
+              <button className="sheet-x" type="button" aria-label="Close" onClick={onClose}>
+                <Icons.close size={15} />
+              </button>
+              {menuOpen && (
+                <div className="sheet-menu">
+                  <div className="menu-k">Only here, not at the source</div>
+                  {task.column !== "arch" && (
+                    <button type="button" onClick={() => { setMenuOpen(false); onArchive(task); }}>
+                      Archive
+                    </button>
+                  )}
+                  <button type="button" className="danger"
+                          onClick={() => { setMenuOpen(false); onDelete(task); }}>Hide</button>
+                </div>
+              )}
+            </div>
           </header>
 
           <div className="sheet-b">
@@ -1001,15 +1075,47 @@
               <h3>Status</h3>
               <div className="seg">
                 {ALL_LANES.map(([lane, label]) => (
-                  <button key={lane} type="button" className={task.column === lane ? "on" : ""}
-                          onClick={() => onMove(task, lane)}>{label}</button>
+                  <button key={lane} type="button" className={lane === (pendingLane || task.column) ? "on" : ""}
+                          onClick={() => setPendingLane(lane === task.column ? null : lane)}>{label}</button>
                 ))}
               </div>
-              <p className="local-note">
-                {fromAgent
-                  ? "Moving a card moves it here only. This one has no ticket behind it to change."
-                  : `Moving a card moves it here only. The state at the source stays ${task.state || "unchanged"}.`}
-              </p>
+              <div className="status-f">
+                <p className="local-note">
+                  {fromAgent
+                    ? "Moving a card moves it here only. This one has no ticket behind it to change."
+                    : `Moving a card moves it here only. The state at the source stays ${task.state || "unchanged"}.`}
+                </p>
+                {pendingLane && (
+                  <button className="btn primary" type="button"
+                          onClick={() => { onMove(task, pendingLane); setPendingLane(null); }}>
+                    Move to {LANE_NAME[pendingLane]}
+                  </button>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <h3>Sources</h3>
+              <div className="srclist">
+                {task.sources.map(s => {
+                  const name = SOURCE_NAME[s.source] || s.source;
+                  // "Mail mail" reads as a stutter: only show the reference when
+                  // it says something the source name does not.
+                  const ref = s.label.toLowerCase() === name.toLowerCase() ? "" : s.label;
+                  const inner = (
+                    <>
+                      <b>{name}</b>
+                      {ref && <span>{ref}</span>}
+                      {s.state && <em>{s.state}</em>}
+                      {s.url && <Icons.link size={13} />}
+                    </>
+                  );
+                  const key = `${s.source}-${s.label}`;
+                  return s.url
+                    ? <a className="srcrow" href={s.url} target="_blank" rel="noopener" key={key}>{inner}</a>
+                    : <span className="srcrow" key={key}>{inner}</span>;
+                })}
+              </div>
             </section>
 
             <section>
@@ -1131,7 +1237,7 @@
           </div>
 
           <footer className="sheet-f">
-            <span>{task.sources.map(s => s.label).join(" · ")}</span>
+            <span>{task.local ? "edited in this browser" : "read-only mirror of the sources"}</span>
             <div className="sheet-acts">
               {editing ? (
                 <>
@@ -1141,11 +1247,7 @@
                   <button type="button" className="primary" onClick={save}>Save here</button>
                 </>
               ) : (
-                <>
-                  <button type="button" onClick={() => { setDesc(task.localDesc || ""); setEditing(true); }}>Edit</button>
-                  {task.column !== "arch" && <button type="button" onClick={() => onArchive(task)}>Archive</button>}
-                  <button type="button" className="danger" onClick={() => onDelete(task)}>Hide</button>
-                </>
+                <button type="button" onClick={() => { setDesc(task.localDesc || ""); setEditing(true); }}>Edit</button>
               )}
             </div>
           </footer>
