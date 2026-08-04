@@ -68,7 +68,7 @@ def snapshot(ctx):
     for internal in ("_sig", "_groups", "_details", "_due", "_signals"):
         doc.pop(internal, None)
     doc["serverNow"] = int(time.time() * 1000)
-    doc["canRun"] = bool(_topic(ctx))
+    doc["canRun"] = True   # the request is a file the Mac reads over ssh; ntfy only speeds it up
     doc["collectorHost"] = _host_state(ctx)
     return 200, doc
 
@@ -78,22 +78,35 @@ def _topic(ctx) -> str:
 
 
 def request_run(ctx):
-    """Publish a run request. The collector may be busy, asleep or the Mac shut:
-    this says the message went out, never that a run happened."""
-    topic = _topic(ctx)
-    if not topic:
-        return 501, {"error": "Nessun topic configurato: aggiungi runTopic alla config del plugin."}
+    """Leave a run request on both channels. The file is the one that always
+    works: the Mac reads it over ssh within a minute. ntfy only makes it fast,
+    so it failing costs a wait, not the click."""
     now = time.time()
     if now - getattr(ctx, "_last_run_request", 0) < RUN_COOLDOWN_S:
         return 429, {"error": "Richiesta gia' inviata meno di un minuto fa."}
-    request = urllib.request.Request(
-        f"{NTFY}/{topic}", data=b"run", method="POST",
-        headers={"Title": "work cockpit", "Tags": "arrows_counterclockwise"})
+    stamp = str(int(now * 1000))
+    path = ctx.config_dir / "data" / "run-request"
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            response.read()
-    except (urllib.error.URLError, OSError) as exc:
-        return 502, {"error": f"ntfy non raggiungibile: {exc}"}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(stamp, encoding="utf-8")
+    except OSError as exc:
+        return 500, {"error": f"Richiesta non scrivibile: {exc}"}
     ctx._last_run_request = now
-    return 202, {"requested": True,
-                 "note": "Richiesta inviata al Mac. Se e' acceso, lo snapshot arriva entro un paio di minuti."}
+
+    fast = ""
+    topic = _topic(ctx)
+    if topic:
+        request = urllib.request.Request(
+            f"{NTFY}/{topic}", data=b"run", method="POST",
+            headers={"Title": "work cockpit", "Tags": "arrows_counterclockwise"})
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                response.read()
+            fast = " Dovrebbe partire subito."
+        except (urllib.error.URLError, OSError):
+            fast = " ntfy non risponde, quindi parte al prossimo giro dell'ascoltatore, entro un minuto."
+    host = _host_state(ctx)
+    if host["state"] == "down":
+        return 202, {"requested": True,
+                     "note": "Richiesta registrata, ma il Mac non si fa sentire: partira' quando torna acceso."}
+    return 202, {"requested": True, "note": f"Richiesta inviata al Mac.{fast}"}
