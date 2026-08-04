@@ -1,13 +1,17 @@
 {
   "id": "work-cockpit",
   "name": "Work cockpit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "lglot",
   "description": "Read-only view of current work across the three areas: Jira and Zammad for A-Cube, Linear for Homelab and Personal, plus the Claude Code / Codex sessions open right now. The sources stay authoritative; the cockpit only says what is now, waiting or next.",
   "homepage": "https://github.com/lglot/lgboard",
   "license": "MIT",
   "lgboardMin": "0.4.0",
   "ui": { "module": "ui.jsx", "launcher": { "label": "Work cockpit", "icon": "briefcase" } },
-  "server": { "module": "server", "endpoints": [{ "method": "GET", "path": "/api/_p/work-cockpit/snapshot" }] },
-  "permissions": []
+  "server": { "module": "server", "endpoints": [
+    { "method": "GET", "path": "/api/_p/work-cockpit/snapshot" },
+    { "method": "POST", "path": "/api/_p/work-cockpit/run" }
+  ] },
+  "config": { "runTopic": "" },
+  "permissions": ["network.fetch"]
 }

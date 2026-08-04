@@ -412,6 +412,49 @@
     text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); }
   .wc-page .log span { display: block; font-size: 13.5px; line-height: 1.5; margin-top: 3px; text-wrap: pretty; }
   .wc-page .prompt-sec > h3, .wc-page .agents-sec > h3 { display: flex; align-items: center; gap: 10px; }
+  .wc-page .pane.wide { width: min(1080px, 96vw); }
+
+  /* architecture: sources on the left, the Mac in the middle, the board on the right */
+  .wc-page .flow { display: grid; grid-template-columns: 1fr auto 1.3fr auto 1fr; gap: 12px;
+    align-items: stretch; }
+  .wc-page .flow-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .wc-page .flow-k { font-family: var(--ff-mono); font-size: 9.5px; text-transform: uppercase;
+    letter-spacing: 0.13em; color: var(--ink-soft); padding-bottom: 2px; }
+  .wc-page .flow-box { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px;
+    background: var(--bg); min-width: 0; }
+  .wc-page .flow-box.tall { height: 100%; background: var(--accent-softer);
+    border-color: color-mix(in oklab, var(--accent) 30%, var(--line)); }
+  .wc-page .flow-box b { display: block; font-weight: 500; font-size: 13.5px; letter-spacing: -0.01em; }
+  .wc-page .flow-box span { display: block; font-family: var(--ff-mono); font-size: 10.5px;
+    color: var(--ink-mid); margin-top: 3px; overflow-wrap: anywhere; }
+  .wc-page .flow-box em { display: block; font-style: normal; font-size: 11.5px; line-height: 1.5;
+    color: var(--ink-soft); margin-top: 5px; }
+  .wc-page .flow-steps { margin: 10px 0 0; padding-left: 16px; font-size: 12px; line-height: 1.65;
+    color: var(--ink-mid); }
+  .wc-page .flow-arrow { align-self: center; color: var(--ink-soft); font-size: 18px; }
+  @media (max-width: 900px) {
+    .wc-page .flow { grid-template-columns: 1fr; }
+    .wc-page .flow-arrow { transform: rotate(90deg); }
+  }
+
+  .wc-page dl.cfg { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 8px 14px; margin: 0; }
+  .wc-page dl.cfg dt { font-family: var(--ff-mono); text-transform: uppercase; font-size: 9.5px;
+    letter-spacing: 0.09em; color: var(--ink-soft); padding-top: 3px; }
+  .wc-page dl.cfg dd { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+  .wc-page dl.cfg dd.mono, .wc-page .local-note .mono { font-family: var(--ff-mono); font-size: 12px; }
+
+  .wc-page .runs { display: flex; flex-direction: column; font-family: var(--ff-mono); font-size: 11.5px; }
+  .wc-page .run-h, .wc-page .run-r { display: grid;
+    grid-template-columns: 84px 84px 52px 68px 52px 62px minmax(0, 1fr); gap: 10px; padding: 7px 2px; }
+  .wc-page .run-h { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--ink-soft); border-bottom: 1px solid var(--line); }
+  .wc-page .run-r { border-top: 1px solid var(--line-2); color: var(--ink-mid); }
+  .wc-page .run-r:first-of-type { border-top: none; }
+  .wc-page .run-r.bad .run-x { color: var(--down); }
+  .wc-page .run-x { color: var(--up); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wc-page .disc-row { width: 100%; text-align: left; background: none; cursor: pointer; font: inherit; }
+  .wc-page .disc-row b::before { content: "› "; color: var(--ink-soft); }
+  .wc-page .disc-row.open b::before { content: "⌄ "; }
   .wc-page .srclist { display: flex; flex-direction: column; }
   .wc-page .srcrow { display: flex; align-items: baseline; gap: 12px; padding: 9px 2px;
     border-top: 1px solid var(--line-2); color: var(--ink); text-decoration: none; }
@@ -821,7 +864,7 @@
   }
 
   // --- panes ----------------------------------------------------------------
-  function Pane({ title, sub, foot, onClose, children }) {
+  function Pane({ title, sub, foot, wide, onClose, children }) {
     useEffect(() => {
       const esc = e => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
       window.addEventListener("keydown", esc, true);
@@ -830,7 +873,7 @@
     return (
       <>
         <div className="scrim" onClick={onClose} />
-        <div className="pane" role="dialog" aria-modal="true" aria-label={title}>
+        <div className={`pane${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
           <header className="pane-h">
             <h2>{title}</h2>
             {sub && <span className="sub">{sub}</span>}
@@ -916,6 +959,168 @@
               ` Last run: ${doc.tokens.calls} calls, ${(doc.tokens.in + doc.tokens.out).toLocaleString("en")} tokens${doc.tokens.exact ? "" : " (estimated)"}.`
             )}
           </p>
+        </section>
+      </Pane>
+    );
+  }
+
+  function Flow({ config }) {
+    const sources = (config && config.sources) || [];
+    return (
+      <div className="flow">
+        <div className="flow-col">
+          <div className="flow-k">Sources</div>
+          {sources.map(s => (
+            <div className="flow-box" key={s.name}>
+              <b>{s.name}</b>
+              <span>{s.how}</span>
+              <em>{s.scope}</em>
+            </div>
+          ))}
+        </div>
+        <div className="flow-arrow" aria-hidden="true">→</div>
+        <div className="flow-col">
+          <div className="flow-k">Collector</div>
+          <div className="flow-box tall">
+            <b>{(config && config.host) || "il Mac"}</b>
+            <span>{config && config.module}</span>
+            <em>
+              Ogni fonte è letta da qui, dove vivono le credenziali: la sessione OAuth di twg,
+              il vault SOPS, i log di Claude Code e Codex.
+            </em>
+            <ol className="flow-steps">
+              <li>legge le fonti, una per una, e riporta quelle che falliscono</li>
+              <li>unifica in task: lo stesso lavoro visto da Jira, Zammad e da una sessione è una card</li>
+              <li>legge mail, Slack e PR e tiene solo quello che è ancora lavoro aperto</li>
+              <li>riassume, colloca, cerca le scadenze</li>
+              <li>scrive lo snapshot e lo copia sul server</li>
+            </ol>
+          </div>
+        </div>
+        <div className="flow-arrow" aria-hidden="true">→</div>
+        <div className="flow-col">
+          <div className="flow-k">Dashboard</div>
+          <div className="flow-box">
+            <b>lgboard</b>
+            <span>{config && config.output && config.output.remote ? "un file JSON, via scp" : "un file JSON"}</span>
+            <em>
+              Il plugin serve il file e basta. Qui non passa nessuna credenziale, e niente di quello
+              che fai in questa pagina torna alle fonti.
+            </em>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function Runs({ runs, now }) {
+    if (!runs || !runs.length) return <p className="local-note">Nessuna esecuzione registrata.</p>;
+    return (
+      <div className="runs">
+        <div className="run-h">
+          <span>when</span><span>trigger</span><span>took</span><span>tokens</span>
+          <span>tasks</span><span>in/out</span><span>result</span>
+        </div>
+        {runs.slice().reverse().map(r => {
+          const tokens = (r.tokens || {}).in + (r.tokens || {}).out || 0;
+          const failed = Object.keys(r.errors || {});
+          return (
+            <div className={`run-r${r.published === "ok" ? "" : " bad"}`} key={r.at}>
+              <span>{age(r.at, now)}</span>
+              <span className="mono">{r.trigger}</span>
+              <span className="mono">{(r.durationMs / 1000).toFixed(0)}s</span>
+              <span className="mono">{tokens ? tokens.toLocaleString("en") : "-"}</span>
+              <span className="mono">{r.tasks}</span>
+              <span className="mono">+{r.entered}/-{r.left}</span>
+              <span className="run-x" title={failed.map(k => `${k}: ${r.errors[k]}`).join("\n")}>
+                {r.published === "ok"
+                  ? (failed.length ? `${failed.length} fonti ko` : "ok")
+                  : r.published}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function CollectorPane({ doc, now, onClose }) {
+    const [running, setRunning] = useState("");
+    const [openPrompt, setOpenPrompt] = useState("");
+    const config = (doc && doc.config) || {};
+    const thresholds = config.thresholds || {};
+    const llm = config.llm || {};
+    const schedule = config.schedule || {};
+    const runNow = () => {
+      setRunning("…");
+      fetch("/api/_p/work-cockpit/run", { method: "POST" })
+        .then(r => r.json().then(body => setRunning(body.note || body.error || `HTTP ${r.status}`)))
+        .catch(e => setRunning(String(e)));
+    };
+    return (
+      <Pane title="Collector" sub={[config.host, config.node].filter(Boolean).join(" · ")} wide onClose={onClose}
+            foot={<span>{(doc && doc.runs || []).length} esecuzioni registrate</span>}>
+        <section>
+          <h3>Come arrivano i dati</h3>
+          <Flow config={config} />
+        </section>
+
+        <section>
+          <h3>Configurazione</h3>
+          <dl className="cfg">
+            <dt>gira su</dt><dd>{config.host || "?"} · {config.workdir || ""}</dd>
+            <dt>ogni</dt>
+            <dd>{schedule.everySeconds ? `${Math.round(schedule.everySeconds / 60)} minuti` : "?"}
+              {schedule.launchAgent ? ` · LaunchAgent ${schedule.launchAgent}` : ""}</dd>
+            <dt>modello</dt><dd>{llm.model || "?"} via {llm.gateway || "?"}</dd>
+            <dt>chiamate llm</dt><dd>{(llm.calls || []).join(", ")}</dd>
+            <dt>sessioni</dt>
+            <dd>finestra {thresholds.sessionWindowHours}h, "ora" entro {thresholds.sessionActiveHours}h,
+              massimo {thresholds.sessionMax} in bacheca</dd>
+            <dt>fermi dopo</dt>
+            <dd>{thresholds.staleWaitingDays}g in attesa, {thresholds.staleNowDays}g in corso senza sessioni</dd>
+            <dt>posta</dt>
+            <dd>triage a blocchi di {thresholds.triageBatch}, massimo {thresholds.triageMax} letti per giro,
+              verdetto valido {thresholds.signalMemoryDays} giorni</dd>
+            <dt>snapshot</dt><dd className="mono">{(config.output || {}).local || "?"}</dd>
+          </dl>
+        </section>
+
+        <section>
+          <h3>Prompt</h3>
+          <div className="srclist">
+            {Object.entries(config.prompts || {}).map(([name, text]) => (
+              <div key={name}>
+                <button className={`srcrow disc-row${openPrompt === name ? " open" : ""}`} type="button"
+                        onClick={() => setOpenPrompt(openPrompt === name ? "" : name)}>
+                  <b>{name}</b>
+                  <span>{text.slice(0, 70)}…</span>
+                </button>
+                {openPrompt === name && <pre className="pbox">{text}</pre>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3>Esecuzioni</h3>
+          <Runs runs={doc && doc.runs} now={now} />
+          <div className="status-f" style={{ marginTop: 14 }}>
+            <p className="local-note">
+              Il collector gira sul Mac, non qui: il pulsante manda una richiesta e basta. Se il Mac è
+              spento o l'ascoltatore non gira, non succede niente e questa pagina non può accorgersene.
+            </p>
+            <button className="btn primary" type="button" disabled={!(doc && doc.canRun)} onClick={runNow}>
+              Run now
+            </button>
+          </div>
+          {running && <p className="local-note">{running}</p>}
+          {doc && !doc.canRun && (
+            <p className="local-note">
+              Nessun topic configurato: serve <span className="mono">runTopic</span> in
+              <span className="mono"> /config/plugins/work-cockpit/config.json</span>.
+            </p>
+          )}
         </section>
       </Pane>
     );
@@ -1475,6 +1680,8 @@
             <div className="head-a">
               <button className="iconbtn" type="button" title="Legend and sources" aria-label="Legend and sources"
                       onClick={() => setPane("info")}><InfoGlyph /></button>
+              <button className="iconbtn" type="button" title="Collector" aria-label="Collector"
+                      onClick={() => setPane("collector")}><Icons.activity size={17} /></button>
               <button className="iconbtn" type="button" title="Settings" aria-label="Settings"
                       onClick={() => setPane("set")}><Icons.sliders size={17} /></button>
               <button className="iconbtn" type="button" title="Reload" aria-label="Reload"
@@ -1635,6 +1842,7 @@
         )}
 
         {pane === "info" && <InfoPane doc={doc} total={areaCounts.all} now={now} onClose={() => setPane(null)} />}
+        {pane === "collector" && <CollectorPane doc={doc} now={now} onClose={() => setPane(null)} />}
         {pane === "set" && (
           <SettingsPane prefs={prefs} setPref={setPref} overrideCount={Object.keys(overrides).length}
                         onClearOverrides={() => { clearOverrides(); showToast("Snapshot ripristinato."); }}
