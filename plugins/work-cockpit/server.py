@@ -20,10 +20,40 @@ NTFY = "https://ntfy.sh"
 RUN_COOLDOWN_S = 60
 
 
+HEARTBEAT_STALE_S = 240  # the Mac says hello every minute; three misses and it is gone
+
+
 def register(ctx):
     ctx.add_route("GET", "/api/_p/work-cockpit/snapshot", lambda req: snapshot(ctx))
     ctx.add_route("POST", "/api/_p/work-cockpit/run", lambda req: request_run(ctx))
+    ctx.add_route("POST", "/api/_p/work-cockpit/heartbeat", lambda req: heartbeat(ctx))
     ctx._last_run_request = 0.0
+
+
+def _beat_file(ctx):
+    return ctx.config_dir / "data" / "heartbeat.json"
+
+
+def heartbeat(ctx):
+    """The Mac checking in. Without it an old snapshot is ambiguous: the machine
+    could be asleep, or awake with a collector that has been failing for hours."""
+    path = _beat_file(ctx)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"at": int(time.time() * 1000)}), encoding="utf-8")
+    except OSError as exc:
+        return 500, {"error": str(exc)}
+    return 204, ""
+
+
+def _host_state(ctx) -> dict:
+    try:
+        beat = json.loads(_beat_file(ctx).read_text(encoding="utf-8"))
+        at = int(beat.get("at") or 0)
+    except (OSError, ValueError, TypeError):
+        return {"state": "unknown", "at": None}
+    silent = time.time() - at / 1000
+    return {"state": "up" if silent < HEARTBEAT_STALE_S else "down", "at": at}
 
 
 def snapshot(ctx):
@@ -39,6 +69,7 @@ def snapshot(ctx):
         doc.pop(internal, None)
     doc["serverNow"] = int(time.time() * 1000)
     doc["canRun"] = bool(_topic(ctx))
+    doc["collectorHost"] = _host_state(ctx)
     return 200, doc
 
 

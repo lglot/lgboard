@@ -37,14 +37,18 @@
     ["now", "On now", "in progress"],
     ["waiting", "Waiting", "on someone else"],
   ];
+  // Done comes from the sources and ages out of them on its own; Archive is
+  // whatever you parked by hand, and stays until you say otherwise.
+  const DONE = ["done", "Done", "finished in the last few days"];
   const ARCH = ["arch", "Archive", "parked by hand"];
-  const ALL_LANES = LANES.concat([ARCH]);
+  const ALL_LANES = LANES.concat([DONE, ARCH]);
   const LANE_NAME = Object.fromEntries(ALL_LANES.map(([k, label]) => [k, label]));
   const AREA_NAME = Object.fromEntries(AREAS.map(([k, label]) => [k, label]));
   const EMPTY_LANE = {
     next: "Nothing queued here.",
     now: "Nothing in progress here.",
     waiting: "Nobody owes you anything here.",
+    done: "Nothing finished in the last few days.",
     arch: "Archive is empty.",
   };
   const OV_KEY = "work-cockpit.overrides.v1";
@@ -269,6 +273,7 @@
   .wc-page .tag.warn { color: var(--sev-reply); border-color: color-mix(in oklab, var(--sev-reply) 40%, var(--line)); }
   .wc-page .tag.bad { color: var(--down); border-color: color-mix(in oklab, var(--down) 42%, var(--line)); }
   .wc-page .tag.due { color: var(--sev-due); border-color: color-mix(in oklab, var(--sev-due) 45%, var(--line)); }
+  .wc-page .tag.ok { color: var(--up); border-color: color-mix(in oklab, var(--up) 45%, var(--line)); }
   .wc-page .tag.local { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
   .wc-page .c-age { margin-left: auto; font-family: var(--ff-mono); font-size: 12px; color: var(--ink-mid);
     font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -432,6 +437,10 @@
   .wc-page .flow-steps { margin: 10px 0 0; padding-left: 16px; font-size: 12px; line-height: 1.65;
     color: var(--ink-mid); }
   .wc-page .flow-arrow { align-self: center; color: var(--ink-soft); font-size: 18px; }
+  .wc-page .hostdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    margin-left: 7px; vertical-align: middle; }
+  .wc-page .hostdot.up { background: var(--up); }
+  .wc-page .hostdot.down { background: var(--down); }
   @media (max-width: 900px) {
     .wc-page .flow { grid-template-columns: 1fr; }
     .wc-page .flow-arrow { transform: rotate(90deg); }
@@ -668,7 +677,7 @@
 
   // --- derived views --------------------------------------------------------
   function urgencyOf(task, now) {
-    if (task.column === "arch") return null;
+    if (task.column === "arch" || task.column === "done") return null;
     if (task.due && task.due.at) {
       const days = daysUntil(task.due.at, now);
       if (days <= DUE_HORIZON_D && days >= -DUE_FORGET_D) {
@@ -814,8 +823,9 @@
             {due !== null && <span className="tag due">{due < 0 ? `${-due}d overdue` : `${due}d left`}</span>}
             {task.stale && <span className="tag bad">{task.stale}</span>}
             {pr && (
-              <span className={`tag ${pr.checksFailed && pr.checksFailed.length ? "bad" : "warn"}`}>
-                PR #{pr.number}
+              <span className={`tag ${(pr.state || "").toUpperCase() === "MERGED" ? "ok"
+                : pr.checksFailed && pr.checksFailed.length ? "bad" : "warn"}`}>
+                PR #{pr.number}{(pr.state || "").toUpperCase() === "MERGED" ? " merged" : ""}
               </span>
             )}
             {task.local && <span className="tag local">local</span>}
@@ -964,7 +974,7 @@
     );
   }
 
-  function Flow({ config }) {
+  function Flow({ config, host }) {
     const sources = (config && config.sources) || [];
     return (
       <div className="flow">
@@ -982,7 +992,13 @@
         <div className="flow-col">
           <div className="flow-k">Collector</div>
           <div className="flow-box tall">
-            <b>{(config && config.host) || "il Mac"}</b>
+            <b>
+              {(config && config.host) || "il Mac"}
+              {host && host.state !== "unknown" && (
+                <span className={`hostdot ${host.state}`} title={
+                  host.state === "up" ? "visto meno di un minuto fa" : "non si fa sentire"} />
+              )}
+            </b>
             <span>{config && config.module}</span>
             <em>
               Ogni fonte è letta da qui, dove vivono le credenziali: la sessione OAuth di twg,
@@ -1048,6 +1064,7 @@
     const [running, setRunning] = useState("");
     const [openPrompt, setOpenPrompt] = useState("");
     const config = (doc && doc.config) || {};
+    const host = (doc && doc.collectorHost) || { state: "unknown" };
     const thresholds = config.thresholds || {};
     const llm = config.llm || {};
     const schedule = config.schedule || {};
@@ -1062,12 +1079,18 @@
             foot={<span>{(doc && doc.runs || []).length} esecuzioni registrate</span>}>
         <section>
           <h3>Come arrivano i dati</h3>
-          <Flow config={config} />
+          <Flow config={config} host={host} />
         </section>
 
         <section>
           <h3>Configurazione</h3>
           <dl className="cfg">
+            <dt>host</dt>
+            <dd>
+              {host.state === "up" ? "acceso, visto " + age(host.at, now)
+                : host.state === "down" ? "non risponde da " + age(host.at, now)
+                : "mai visto: l'ascoltatore sul Mac non sta girando"}
+            </dd>
             <dt>gira su</dt><dd>{config.host || "?"} · {config.workdir || ""}</dd>
             <dt>ogni</dt>
             <dd>{schedule.everySeconds ? `${Math.round(schedule.everySeconds / 60)} minuti` : "?"}
@@ -1082,6 +1105,8 @@
             <dt>posta</dt>
             <dd>triage a blocchi di {thresholds.triageBatch}, massimo {thresholds.triageMax} letti per giro,
               verdetto valido {thresholds.signalMemoryDays} giorni</dd>
+            <dt>completati</dt>
+            <dd>restano visibili {thresholds.doneDays} giorni, poi escono dalle query e spariscono</dd>
             <dt>snapshot</dt><dd className="mono">{(config.output || {}).local || "?"}</dd>
           </dl>
         </section>
@@ -1200,6 +1225,16 @@
     // A card built from sessions alone has no state at a source: what looks like
     // one is the name of the agent that produced it.
     const fromAgent = task.sources.every(s => s.source === "agent");
+    // A merged PR is the clearest "this is finished" the board ever gets, and it
+    // was buried among the review comments. It arrives two ways: attached to a
+    // session branch, or as a source the collector picked up on its own.
+    const merged = (task.prs || [])
+      .filter(pr => (pr.state || "").toUpperCase() === "MERGED")
+      .map(pr => `#${pr.number}`)
+      .concat(task.sources.filter(s => s.source === "pr" && /merged/i.test(s.label))
+        .map(s => s.label.replace(/\s*merged\s*/i, "")));
+    const openPrs = (task.prs || []).filter(pr => (pr.state || "").toUpperCase() !== "MERGED").length
+      + task.sources.filter(s => s.source === "pr" && !/merged/i.test(s.label)).length;
 
     useEffect(() => {
       setEditing(false);
@@ -1331,10 +1366,20 @@
                 : <p className="sheet-desc">{baseDesc}</p>}
             </section>
 
-            {(detail.todo || detail.next || task.due) && (
+            {(detail.done || detail.todo || detail.next || task.due || merged.length > 0) && (
               <section>
-                <h3>What is left</h3>
+                <h3>Progress</h3>
                 <dl>
+                  {detail.done && <><dt>done</dt><dd>{detail.done}</dd></>}
+                  {merged.length > 0 && (
+                    <><dt>merged</dt>
+                      <dd>
+                        {merged.join(", ")} in main.
+                        {!openPrs && task.column !== "done"
+                          ? " Il codice è dentro: se il ticket alla fonte è ancora aperto, chiudilo lì."
+                          : ""}
+                      </dd></>
+                  )}
                   {detail.todo && <><dt>missing</dt><dd>{detail.todo}</dd></>}
                   {detail.next && <><dt>next</dt><dd>{detail.next}</dd></>}
                   {task.due && task.due.at && (
@@ -1503,13 +1548,14 @@
 
     const now = (doc && doc.serverNow) || Date.now();
     const stale = doc && doc.generatedAt && (now - doc.generatedAt) > ((doc && doc.staleAfterMs) || 7200000);
+    const hostDown = !!(doc && doc.collectorHost && doc.collectorHost.state === "down");
 
     // Every task the snapshot carries, with the local overrides applied on top
     // and the deleted ones dropped.
     const [tasks, base] = useMemo(() => {
       const out = [];
       const original = {};
-      AREAS.forEach(([a]) => LANES.forEach(([c]) => {
+      AREAS.forEach(([a]) => LANES.concat([DONE]).forEach(([c]) => {
         (((doc && doc.areas) || {})[a] || {})[c] &&
           doc.areas[a][c].forEach(t => {
             original[t.id] = { column: c, title: t.title };
@@ -1536,7 +1582,7 @@
       [tasks, area, matches]);
 
     const byLane = useMemo(() => {
-      const out = { next: [], now: [], waiting: [], arch: [] };
+      const out = { next: [], now: [], waiting: [], done: [], arch: [] };
       visible.forEach(t => (out[t.column] || out.next).push(t));
       Object.values(out).forEach(list => list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
       return out;
@@ -1546,7 +1592,7 @@
       const counts = { all: 0 };
       AREAS.forEach(([a]) => { counts[a] = 0; });
       tasks.filter(matches).forEach(t => {
-        if (t.column === "arch") return;
+        if (t.column === "arch" || t.column === "done") return;  // counts are open work
         counts.all += 1;
         counts[t.area] = (counts[t.area] || 0) + 1;
       });
@@ -1556,7 +1602,7 @@
     // The hero is the last thing that moved: a live agent session first, then
     // the most recently touched card.
     const hero = useMemo(() => {
-      const pool = visible.filter(t => t.column !== "arch");
+      const pool = visible.filter(t => t.column !== "arch" && t.column !== "done");
       const live = pool.filter(t => (t.agents || []).length);
       const pick = (live.length ? live : pool).slice()
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
@@ -1657,11 +1703,14 @@
       </div>
     );
 
-    const archLane = (
-      <Lane lane="arch" label={ARCH[1]} what={ARCH[2]} tasks={byLane.arch} now={now} card={card}
-            drop={drop} over={overZone === "arch"} collapsed={!prefs.arch && !needle}
-            onToggle={() => setPref("arch", !prefs.arch)} />
+    // Done and Archive sit full width under the board, both collapsed until
+    // asked for: they are the past, not the work.
+    const closedLane = ([key, label, what]) => (
+      <Lane key={key} lane={key} label={label} what={what} tasks={byLane[key]} now={now} card={card}
+            drop={drop} over={overZone === key} collapsed={!prefs[key] && !needle}
+            onToggle={() => setPref(key, !prefs[key])} />
     );
+    const closedLanes = [DONE, ARCH].map(closedLane);
 
     return (
       <div className={`wc-page${prefs.dense ? " dense" : ""}`} data-view={prefs.view}>
@@ -1692,10 +1741,18 @@
           </header>
 
           {doc && doc.error && <div className="banner err">{doc.error}</div>}
-          {stale && (
+          {/* An old snapshot means two very different things, and the heartbeat
+              is what tells them apart. */}
+          {hostDown && (
             <div className="banner">
-              Snapshot stuck for {shortAge(doc.generatedAt, now)}: the collector on the Mac is not
-              running. Everything below is old.
+              The Mac has not checked in for {shortAge(doc.collectorHost.at, now)}: it is asleep or off,
+              so nothing is being collected. What follows is the last thing it published.
+            </div>
+          )}
+          {stale && !hostDown && (
+            <div className="banner">
+              Snapshot stuck for {shortAge(doc.generatedAt, now)}: the Mac is up but the collector has
+              not published. Everything below is old.
             </div>
           )}
 
@@ -1811,7 +1868,7 @@
                   );
                 })}
               </div>
-              <div className="board">{archLane}</div>
+              <div className="board">{closedLanes}</div>
             </>
           ) : (
             <div className="board">
@@ -1819,7 +1876,9 @@
                 <Lane key={lane} lane={lane} label={label} what={what} tasks={byLane[lane]} now={now}
                       card={card} drop={drop} over={overZone === lane} />
               ))}
-              {(prefs.view !== "tabs" || prefs.lane === "arch") && archLane}
+              {prefs.view !== "tabs"
+                ? closedLanes
+                : [DONE, ARCH].filter(([k]) => k === prefs.lane).map(closedLane)}
             </div>
           )}
 
@@ -1916,6 +1975,10 @@
     if (!doc) return null;
     if (doc.error) return { tone: "down", dot: "down", value: "snapshot non leggibile", meta: doc.error };
     const now = doc.serverNow || Date.now();
+    if (doc.collectorHost && doc.collectorHost.state === "down") {
+      return { tone: "warn", dot: "idle", value: "Mac spento",
+               meta: `nessun battito da ${age(doc.collectorHost.at, now)}: il cockpit mostra l'ultimo snapshot` };
+    }
     const count = column => AREAS.reduce((n, [area]) =>
       n + (((doc.areas || {})[area] || {})[column] || []).length, 0);
     const [nowN, waiting, next] = LANES.map(([column]) => count(column));
