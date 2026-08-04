@@ -335,7 +335,7 @@
   .wc-page .scrim { position: fixed; inset: 0; z-index: 70; background: oklch(22% 0.02 260 / 0.42);
     backdrop-filter: blur(3px); animation: wc-fade 140ms ease; }
   .wc-page .sheet, .wc-page .pane { position: fixed; z-index: 71; top: 50%; left: 50%;
-    transform: translate(-50%, -50%); width: min(660px, 94vw); max-height: 88vh; display: flex;
+    transform: translate(-50%, -50%); width: min(860px, 94vw); max-height: 92vh; display: flex;
     flex-direction: column; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 20px;
     box-shadow: 0 40px 90px -34px oklch(20% 0.02 260 / 0.5); overflow: hidden;
     animation: wc-pop 190ms cubic-bezier(0.2, 0.9, 0.3, 1); }
@@ -352,15 +352,20 @@
     border-radius: 50%; border: 1px solid var(--line); background: var(--bg-elev); color: var(--ink-mid);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
   .wc-page .sheet-x:hover { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
-  .wc-page .sheet-b, .wc-page .pane-b { overflow-y: auto; -webkit-overflow-scrolling: touch;
+  /* Scroll without the bar: the sheet is sized to fit, and when a task really
+     is longer than the screen it still moves under the wheel. */
+  .wc-page .sheet-b, .wc-page .pane-b { overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
     padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 22px; }
+  .wc-page .sheet-b::-webkit-scrollbar, .wc-page .pane-b::-webkit-scrollbar { display: none; }
+  .wc-page .sheet-b > section { min-width: 0; }
   .wc-page .sheet-b h3, .wc-page .pane-b section > h3 { margin: 0 0 9px; font-family: var(--ff-mono);
     font-size: 9.5px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.11em; color: var(--ink-soft); }
   .wc-page .sheet-desc { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--ink-mid); text-wrap: pretty; }
   .wc-page .sheet dl { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; }
   .wc-page .sheet dt { font-family: var(--ff-mono); text-transform: uppercase; font-size: 9.5px;
     letter-spacing: 0.09em; color: var(--ink-soft); padding-top: 3px; }
-  .wc-page .sheet dd { margin: 0; font-size: 13.5px; }
+  .wc-page .sheet dd { margin: 0; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
   .wc-page .sheet dd.mono { font-family: var(--ff-mono); font-size: 12px; word-break: break-all; }
   .wc-page .cmd { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 8px 11px;
     border: 1px solid var(--line); border-radius: 9px; background: var(--bg); font-family: var(--ff-mono);
@@ -381,7 +386,9 @@
   .wc-page .log time { display: block; font-family: var(--ff-mono); font-size: 10.5px;
     text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); }
   .wc-page .log span { display: block; font-size: 13.5px; line-height: 1.5; margin-top: 3px; text-wrap: pretty; }
-  .wc-page .prompt-sec > h3 { display: flex; align-items: center; gap: 10px; }
+  .wc-page .prompt-sec > h3, .wc-page .agents-sec > h3 { display: flex; align-items: center; gap: 10px; }
+  .wc-page .disc-n { font-family: var(--ff-mono); font-size: 10px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
   .wc-page .disc { display: inline-flex; align-items: center; gap: 7px; border: none; background: none;
     padding: 0; cursor: pointer; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
   .wc-page .disc:hover { color: var(--accent); }
@@ -929,10 +936,14 @@
     const [title, setTitle] = useState(task.title);
     const [desc, setDesc] = useState("");
     const [promptOpen, setPromptOpen] = useState(false);
+    const [agentsOpen, setAgentsOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const detail = task.detail || {};
     const baseDesc = task.localDesc || detail.done || task.note || "No description recorded for this item yet.";
+    // A card built from sessions alone has no state at a source: what looks like
+    // one is the name of the agent that produced it.
+    const fromAgent = task.sources.every(s => s.source === "agent");
 
     useEffect(() => {
       setEditing(false);
@@ -976,7 +987,7 @@
               {task.sources.map(s => (s.url
                 ? <a className="tag id" href={s.url} target="_blank" rel="noopener" key={s.label}>{s.label}</a>
                 : <span className="tag" key={s.label}>{s.label}</span>))}
-              {task.state && <span className="tag">{task.state}</span>}
+              {task.state && !fromAgent && <span className="tag">{task.state}</span>}
               {task.due && task.due.at && <span className="tag due">{dueLabel(task.due.at, now)}</span>}
               {task.local && <span className="tag local">edited here</span>}
             </div>
@@ -995,7 +1006,9 @@
                 ))}
               </div>
               <p className="local-note">
-                Moving a card moves it here only. The state at the source stays {task.state || "unchanged"}.
+                {fromAgent
+                  ? "Moving a card moves it here only. This one has no ticket behind it to change."
+                  : `Moving a card moves it here only. The state at the source stays ${task.state || "unchanged"}.`}
               </p>
             </section>
 
@@ -1025,7 +1038,7 @@
               <h3>Detail</h3>
               <dl>
                 <dt>area</dt><dd>{AREA_NAME[task.area] || task.area}</dd>
-                <dt>state</dt><dd>{task.state || "no state"}</dd>
+                <dt>{fromAgent ? "source" : "state"}</dt><dd>{task.state || "no state"}</dd>
                 <dt>updated</dt><dd>{age(task.updatedAt, now)}</dd>
                 {task.timeSpentMs > 0 && <><dt>time</dt><dd>{hours(task.timeSpentMs)} of agent sessions</dd></>}
                 {task.note && <><dt>note</dt><dd>{task.note}</dd></>}
@@ -1056,9 +1069,17 @@
             )}
 
             {(task.agents || []).length > 0 && (
-              <section>
-                <h3>Agent sessions</h3>
-                {task.agents.map(a => (
+              <section className="agents-sec">
+                <h3>
+                  <button className={`disc${agentsOpen ? " open" : ""}`} type="button"
+                          aria-expanded={agentsOpen} onClick={() => setAgentsOpen(!agentsOpen)}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                    Agent sessions
+                  </button>
+                  <span className="disc-n">{task.agents.length}</span>
+                </h3>
+                {agentsOpen && task.agents.map(a => (
                   <div key={a.sessionId || a.label} style={{ marginBottom: 14 }}>
                     <dl>
                       <dt>agent</dt><dd>{a.agent}{a.runs > 1 ? ` · ${a.runs} sessions` : ""}</dd>
