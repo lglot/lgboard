@@ -1,0 +1,3 @@
+# Fotografie del DOM e store delle catture: si rigenerano, pesano 400 KB.
+*.html
+states-store.json

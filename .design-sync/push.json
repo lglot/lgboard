@@ -1,0 +1,22 @@
+{
+  "projectId": "b7e739bd-5553-479b-aa8f-68e1ca181b74",
+  "projectName": "lgserver-dashboard",
+  "note": "Mirror parziale push-only: repo/* sul canvas e' una copia dei sorgenti veri, nessuno lo edita da li'. I mockup editabili (Home Server Dashboard.html, Work Cockpit.html) NON si toccano mai da qui: vivono su Claude Design.",
+  "files": {
+    "public/components.jsx": "repo/components.jsx",
+    "public/icons.jsx": "repo/icons.jsx",
+    "public/themes.jsx": "repo/themes.jsx",
+    "public/style.css": "repo/style.css",
+    "plugins/work-cockpit/ui.jsx": "repo/plugin-work-cockpit.jsx",
+    ".design-sync/README.remote.md": "README.md"
+  },
+  "snapshots": {
+    "note": "Fotografie del DOM vivo: non si copiano da un sorgente, si rigenerano con la skill claude-design-sync e poi si caricano da qui.",
+    "files": {
+      ".design-sync/Work Cockpit (live).html": "Work Cockpit (live).html",
+      ".design-sync/Work Cockpit States.html": "Work Cockpit States.html"
+    },
+    "scripts": ["freeze-cockpit.py", "compose-cockpit-states.py"],
+    "lastCapture": "2026-08-05, istanza locale su http://localhost:8099"
+  }
+}
