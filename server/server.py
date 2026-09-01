@@ -127,6 +127,7 @@ class State:
         self.host_proc = stats_cfg.get("hostProc", "/host/proc")
         self.host_sys = stats_cfg.get("hostSys", "/host/sys")
         host_root = stats_cfg.get("hostRoot", "/host/root")
+        self.host_root = host_root
         # Back-compat: if no `disks` array given, fall back to single hostRoot.
         self.disks_cfg = stats_cfg.get("disks") or [
             {"id": "rootfs", "label": "rootfs", "path": host_root}
@@ -200,7 +201,7 @@ class State:
 
     def build_local_stats(self) -> dict:
         """The single-host /api/stats payload (backward-compatible shape)."""
-        disks = read_disks(self.disks_cfg)
+        disks = read_disks(self.disks_cfg, self.host_root)
         return {
             "cpu": self.cpu.sample(),
             "cpuInfo": read_cpuinfo(self.host_proc),

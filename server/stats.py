@@ -92,10 +92,19 @@ def read_disk(root_path: str = "/host/root") -> dict | None:
     }
 
 
-def read_disks(disks_cfg: list[dict] | None) -> list[dict]:
-    """Read multiple disks. disks_cfg = [{label, path}]. Skips missing mounts."""
+def read_disks(disks_cfg: list[dict] | None, root_path: str | None = None) -> list[dict]:
+    """Read multiple disks. disks_cfg = [{label, path}]. Skips missing mounts.
+
+    A path that is not `root_path` but sits on the same device is an unmounted
+    mountpoint (a plain directory on the root fs): skipped, or it would report
+    the root fs numbers under the disk's label.
+    """
     if not disks_cfg:
         return []
+    try:
+        root_dev = os.stat(root_path).st_dev if root_path else None
+    except OSError:
+        root_dev = None
     out: list[dict] = []
     for entry in disks_cfg:
         path = entry.get("path")
@@ -104,6 +113,8 @@ def read_disks(disks_cfg: list[dict] | None) -> list[dict]:
             continue
         d = read_disk(path)
         if d is None:
+            continue
+        if root_dev is not None and path != root_path and os.stat(path).st_dev == root_dev:
             continue
         d["label"] = label
         d["id"] = entry.get("id") or label.lower().replace(" ", "-")
