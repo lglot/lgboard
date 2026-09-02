@@ -10,24 +10,24 @@ dell'utente. La versione canonica vive sul repo; modifiche via PR.
 ## Aggiornamento 2026-07-28: l'host è cambiato
 
 lgboard non gira più sul mini-PC originale. Le sezioni datate 2026-04-25 qui
-sotto restano come cronaca, ma dove parlano di "lgserver" intendono l'hardware
-vecchio: i riferimenti operativi validi sono questi.
+sotto restano come cronaca, ma dove parlano di "lgserver-old" intendono
+l'hardware vecchio: i riferimenti operativi validi sono questi.
 
 | | Prima (fino a luglio 2026) | Ora |
 |---|---|---|
-| Host dashboard | `lgserver`, AMD G-T44R, 1.6 GB RAM | `lgserver-new`, Intel i7-8550U 8 core, 7.6 GB RAM, Debian 13 |
+| Host dashboard | `lgserver-old`, AMD G-T44R, 1.6 GB RAM | `lgserver`, Intel i7-8550U 8 core, 7.6 GB RAM, Debian 13 |
 | Indirizzo | 192.168.1.143 | 192.168.1.161, dashboard su `:8080` |
 | Ruolo del vecchio host | tutto | solo server NFS (`/media/hdd1`, `/media/hdd2`) e agent stats |
 
 Conseguenze pratiche:
 
 - **Watchtower non è più deployato.** L'auto-pull notturno dell'immagine non
-  esiste su lgserver-new: il container `dashboard` ha `restart: unless-stopped`
+  esiste su lgserver: il container `dashboard` ha `restart: unless-stopped`
   e va aggiornato a mano. Questo invalida il piano del plugin Watchtower più
   sotto, che assumeva un Watchtower già attivo.
-- **Gli alias di deploy puntano all'host sbagliato.** `lgboard-now` e
-  `lgserver-now` nei dotfiles fanno ancora `ssh lgserver`: vanno ripuntati su
-  `lgserver-new` prima di poterli usare.
+- **Gli alias di deploy sono stati ripuntati.** `lgboard-now` e `lgserver-now`
+  nei dotfiles usano `ssh lgserver` con il compose in `~/compose/smart-home`
+  (aggiornati il 2026-09-01, prima puntavano al vecchio host).
 - **Il vecchio host resta nella dashboard**, ma come host remoto: ci gira
   lgboard in `agentMode` (container `lgboard-agent`, porta 8077) che espone
   `/api/stats`, ed è registrato in `stats.remoteHosts` insieme al Mac.
@@ -69,10 +69,10 @@ Fatto da allora, oltre a quanto elencato sotto:
 - ✅ Pipeline auto-deploy:
   - Mac: `~/code/homelab/lgboard`, `~/code/homelab/home_server`
   - GH: lgboard pubblico → GHCR; home_server privato (force-pushed in sync)
-  - lgserver: `image: ghcr.io/lglot/lgboard:latest`, `pull_policy: always`,
+  - lgserver-old: `image: ghcr.io/lglot/lgboard:latest`, `pull_policy: always`,
     Watchtower nightly per auto-pull *(superato: vedi aggiornamento in testa)*
   - Override istantaneo: alias `lgboard-now`, `lgserver-now`, `lgboard-build`
-    *(i primi due puntano ancora al vecchio host)*
+    *(i primi due ripuntati su `lgserver` il 2026-09-01)*
 - ✅ Memoria Claude `feedback_deploy_workflow.md` — Claude esegue deploy
   autonomamente
 - ✅ SWAG conf per ttyd (`/_p/ssh/<sid>/` → `lgboard-ttyd-<sid>:7681`),
@@ -143,7 +143,7 @@ per overview e force-update.
 
 ### Tecnica
 
-> ⚠️ Premessa non più valida dopo la migrazione: su lgserver-new Watchtower non
+> ⚠️ Premessa non più valida dopo la migrazione: su lgserver Watchtower non
 > è deployato. Prima di questo piano va deciso se reintrodurlo o se sostituire
 > il plugin con un semplice "pull e ricrea" via Docker API.
 
@@ -307,7 +307,7 @@ e visualizza la risposta nel pannello chat. Stesso UX degli altri backend.
   oggi non ha)
 - **Costo**: `openai`/`gemini`/`anthropic` sono pay-per-token. Plugin mostra
   spesa ultime 24h se il provider espone usage API
-- **Latenza Ollama locale**: dipende dal modello. Su lgserver-new (i7-8550U,
+- **Latenza Ollama locale**: dipende dal modello. Su lgserver (i7-8550U,
   8 core, 7.6 GB, nessuna GPU discreta) un 7-8B quantizzato gira su CPU, lento
   ma usabile; sotto i 3B è comodo. La stima originale (`1B-3B` al massimo,
   ~3-5 tok/s) era tarata sul vecchio host da 1.6 GB e va rifatta misurando

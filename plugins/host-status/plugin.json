@@ -26,7 +26,7 @@
     "type": "object",
     "properties": {
       "hostRoot":  { "type": "string", "default": "/host/root" },
-      "hostLabel": { "type": "string", "default": "lgserver-new" },
+      "hostLabel": { "type": "string", "default": "lgserver" },
       "homeDir":   { "type": "string", "default": "/home/lgser" }
     }
   }

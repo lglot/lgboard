@@ -11,7 +11,7 @@ Due tipi di file, che servono a cose diverse.
 
 ## Fotografie della dashboard vera
 
-Congelate dall'istanza live (`lgserver-new`, tema chiaro), script rimossi e CSS inlinato: si aprono ovunque, non chiamano nessuna API, e mostrano esattamente ciò che gira oggi.
+Congelate dall'istanza live (`lgserver`, tema chiaro), script rimossi e CSS inlinato: si aprono ovunque, non chiamano nessuna API, e mostrano esattamente ciò che gira oggi.
 
 | File | Cos'è |
 |---|---|

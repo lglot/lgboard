@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 
 DEFAULTS = {
     "hostRoot": "/host/root",
-    "hostLabel": "lgserver-new",
+    "hostLabel": "lgserver",
     "homeDir": "/home/lgser",
 }
 
