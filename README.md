@@ -1,3 +1,5 @@
+<img src="public/apple-touch-icon.png" width="96" alt="lgboard icon">
+
 # lgboard
 
 A simple, fast, self-hosted homelab dashboard. Zero build step, zero JS
