@@ -24,6 +24,84 @@ const fmtUptime = (sec) => {
   return `${d}d ${h}h`;
 };
 
+// Saved order first (ids that still exist), then anything new in its natural order.
+const applyOrder = (ids, saved) => {
+  const keep = (saved || []).filter(id => ids.includes(id));
+  return [...keep, ...ids.filter(id => !keep.includes(id))];
+};
+
+// Drag to reorder with mouse or touch (Pointer Events, no library), arrows on the
+// keyboard. A drag starts only from a grip with touch-action:none, so scrolling,
+// links and clicks stay as they are. Siblings tagged with the same group swap in
+// live as the pointer crosses them; onCommit receives the final order.
+function useSortable(group, onCommit) {
+  const [drag, setDrag] = useState(null); // { id, order } while dragging
+  const grip = (id, ids) => ({
+    type: 'button',
+    className: 'grip',
+    'aria-label': 'Trascina per riordinare',
+    title: 'Trascina per riordinare',
+    onClick: (e) => { e.preventDefault(); e.stopPropagation(); },
+    onKeyDown: (e) => {
+      const d = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+      if (!d) return;
+      e.preventDefault(); e.stopPropagation();
+      const shown = (k) => document.querySelector(`[data-sort-group="${group}"][data-sort-id="${CSS.escape(k)}"]`);
+      const i = ids.indexOf(id);
+      let j = i + d;
+      while (j >= 0 && j < ids.length && !shown(ids[j])) j += d; // skip hidden blocks
+      if (j < 0 || j >= ids.length) return;
+      const next = ids.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      onCommit(next);
+    },
+    onPointerDown: (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation();
+      let order = ids.slice(), last = null, x = e.clientX, y = e.clientY;
+      const hit = () => {
+        const t = document.elementFromPoint(x, y)?.closest(`[data-sort-group="${group}"]`);
+        const tid = t?.dataset.sortId;
+        // `last` stops a tall sibling from swapping back while the pointer is still on it
+        if (!tid || tid === id) { last = null; return; }
+        if (tid === last) return;
+        last = tid;
+        const next = order.filter(k => k !== id);
+        next.splice(order.indexOf(tid), 0, id);
+        order = next;
+        setDrag({ id, order });
+      };
+      // keep the page scrolling while the pointer rests near the top or bottom edge
+      let raf = requestAnimationFrame(function edge() {
+        const v = y < 60 ? -10 : y > window.innerHeight - 60 ? 10 : 0;
+        if (v) { window.scrollBy(0, v); hit(); }
+        raf = requestAnimationFrame(edge);
+      });
+      const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+      const move = (ev) => { x = ev.clientX; y = ev.clientY; hit(); };
+      const end = () => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        document.body.classList.remove('sorting');
+        // the release can land on a card link: eat the click it would trigger
+        window.addEventListener('click', swallow, true);
+        setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+        setDrag(null);
+        if (order.join() !== ids.join()) onCommit(order);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+      document.body.classList.add('sorting');
+      setDrag({ id, order });
+    },
+  });
+  const item = (id) => ({ 'data-sort-group': group, 'data-sort-id': id, 'data-dragging': drag?.id === id || undefined });
+  return { sorted: (ids) => (drag ? drag.order : ids), grip, item };
+}
+
 // Picks the smallest unit that keeps the value >= 1 (or B for tiny).
 function formatBytes(n) {
   if (n == null || !isFinite(n)) return null;
@@ -273,11 +351,10 @@ function DiskBar({ disk }) {
   );
 }
 
-function StatsStrip({ hidden, visible, storageOpen, setStorageOpen, hosts, loaded, netHistory }) {
+function StatsStrip({ visible, storageOpen, setStorageOpen, hosts, loaded, netHistory }) {
   const [hostIdx, setHostIdx] = useState(0);
   const [containersOpen, setContainersOpen] = useState(false);
   const [cFilter, setCFilter] = useState('all');
-  if (hidden) return null;
 
   const multi = hosts.length > 1;
   const idx = Math.min(hostIdx, Math.max(0, hosts.length - 1));
@@ -558,34 +635,49 @@ function PluginTileActions({ app, discovery, plugins }) {
    so the answer is already on the home and the click is only for the detail.
    Label and glyph come from plugin.json (ui.launcher), the headline from the
    plugin's own useSignal() hook; the surface it opens is its `Surface`. */
-function PluginCard({ plugin, manifest, onOpen }) {
+// Collapsed, a card shrinks to one line (label + headline); expanded it also
+// shows the meta line. Either way the card body opens the plugin's Surface.
+function PluginCard({ plugin, manifest, onOpen, collapsed, onToggle, sortItem, sortGrip }) {
   const signal = plugin.useSignal();
   if (!signal) return null;
   const launcher = manifest?.ui?.launcher || {};
   const label = signal.label || launcher.label || manifest?.name || plugin.id;
   const I = Icons[signal.icon || launcher.icon] || Icons.dot;
   return (
-    <button className={`plug is-${signal.tone || 'ok'}`} onClick={() => onOpen(plugin.id)}
-      aria-label={`${label}: ${signal.value}`} title={label}>
-      <span className="plug-icn"><I size={20} /></span>
-      <span className="plug-body">
-        <span className="plug-label"><span className={`dot dot-${signal.dot || 'up'}`} />{label}</span>
-        <span className="plug-val">{signal.value}</span>
-        <span className="plug-meta">{signal.meta}</span>
+    <div className={`plug is-${signal.tone || 'ok'}${collapsed ? ' is-min' : ''}`} {...sortItem}>
+      <button className="plug-main" onClick={() => onOpen(plugin.id)}
+        aria-label={`${label}: ${signal.value}`} title={label}>
+        <span className="plug-icn"><I size={collapsed ? 16 : 20} /></span>
+        <span className="plug-body">
+          <span className="plug-label"><span className={`dot dot-${signal.dot || 'up'}`} />{label}</span>
+          <span className="plug-val">{signal.value}</span>
+          {!collapsed && <span className="plug-meta">{signal.meta}</span>}
+        </span>
+      </button>
+      <span className="plug-tools">
+        <button type="button" className="plug-tog" onClick={onToggle} aria-expanded={!collapsed}
+          aria-label={collapsed ? `Espandi ${label}` : `Comprimi ${label}`} title={collapsed ? 'Espandi' : 'Comprimi'}>
+          <Icons.chevDown size={14} />
+        </button>
+        <button {...sortGrip}><Icons.grip size={14} /></button>
       </span>
-      <span className="plug-go"><Icons.chevRight size={16} /></span>
-    </button>
+    </div>
   );
 }
 
-function PluginBand({ plugins, manifests, onOpen }) {
-  const list = Object.values(plugins || {}).filter(p => p?.useSignal);
-  if (!list.length) return null;
-  const byId = {};
+function PluginBand({ list, manifests, onOpen, order, onOrder, collapsed, onCollapse }) {
+  const sort = useSortable('plugin', onOrder);
+  const byId = {}, plugin = {};
   (manifests || []).forEach(m => { byId[m.id] = m; });
+  list.forEach(p => { plugin[p.id] = p; });
+  const ids = applyOrder(list.map(p => p.id), order);
   return (
     <div className="plug-row">
-      {list.map(p => <PluginCard key={p.id} plugin={p} manifest={byId[p.id]} onOpen={onOpen} />)}
+      {sort.sorted(ids).map(id => (
+        <PluginCard key={id} plugin={plugin[id]} manifest={byId[id]} onOpen={onOpen}
+          collapsed={!!collapsed?.[id]} onToggle={() => onCollapse(id, !collapsed?.[id])}
+          sortItem={sort.item(id)} sortGrip={sort.grip(id, ids)} />
+      ))}
     </div>
   );
 }
@@ -669,10 +761,10 @@ function StatusBadge({ h }) {
   );
 }
 
-function FavCard({ app, health, discovery, plugins, onAppsChanged }) {
+function FavCard({ app, health, discovery, plugins, onAppsChanged, sortItem, sortGrip }) {
   const h = health?.[app.id];
   return (
-    <a className="fav" href={app.url || '#'} target={resolveTarget(app)} rel="noopener">
+    <a className="fav" href={app.url || '#'} target={resolveTarget(app)} rel="noopener" {...sortItem}>
       <div className="fav-icon"><AppIcon app={app} size={28} /></div>
       <div className="fav-body">
         <div className="fav-name">{app.name}</div>
@@ -682,6 +774,7 @@ function FavCard({ app, health, discovery, plugins, onAppsChanged }) {
         <StatusBadge h={h} />
         <PluginTileActions app={app} discovery={discovery} plugins={plugins} />
         <PinButton app={app} onChanged={onAppsChanged} />
+        <button {...sortGrip}><Icons.grip size={14} /></button>
       </div>
     </a>
   );
@@ -1137,6 +1230,9 @@ function Dashboard({ clientPrefs }) {
   const discovery = useDiscovery(60_000);
   const { manifests: pluginManifests, registry: pluginRegistry } = usePlugins();
   const { hosts: statHosts, loaded: statsLoaded, netHistory } = useServerStats(3000);
+  // Layout order lives in prefs (localStorage): each device keeps its own.
+  const sectionSort = useSortable('section', (o) => setPrefs(p => ({ ...p, sectionOrder: o })));
+  const favSort = useSortable('fav', (o) => setPrefs(p => ({ ...p, favOrder: o })));
 
   const loadConfig = useCallback(async () => {
     try {
@@ -1313,6 +1409,46 @@ function Dashboard({ clientPrefs }) {
     </div>
   );
 
+  const pluginList = Object.values(pluginRegistry || {}).filter(p => p?.useSignal);
+  const favById = Object.fromEntries(favs.map(a => [a.id, a]));
+  const favIds = applyOrder(favs.map(a => a.id), prefs.favOrder);
+  const groups = groupBy === 'host'
+    ? hostGroups.map(h => ({ key: 'host:' + h.id, icon: Icons.server, title: h.name, list: shownApps.filter(a => appHost(a) === h.id) }))
+    : categories.map(c => ({ key: 'cat:' + c.id, icon: Icons[c.icon] || Icons.server, title: c.label, list: shownApps.filter(a => a.cat === c.id) }));
+  // Every block below the toolbar is a draggable section; Pinned leads by default.
+  const blocks = [
+    { key: 'pinned', on: show('showFavs') && favs.length > 0, icon: Icons.star, title: 'Pinned', count: favs.length,
+      body: (
+        <div className="fav-grid">
+          {favSort.sorted(favIds).map(id => (
+            <FavCard key={id} app={favById[id]} health={health} discovery={discovery} plugins={pluginRegistry}
+              onAppsChanged={loadConfig} sortItem={favSort.item(id)} sortGrip={favSort.grip(id, favIds)} />
+          ))}
+        </div>
+      ) },
+    { key: 'plugins', on: pluginList.length > 0, icon: Icons.pulse, title: 'Plugins', count: pluginList.length,
+      body: (
+        <PluginBand list={pluginList} manifests={pluginManifests} onOpen={setPluginOpen}
+          order={prefs.pluginOrder} onOrder={(o) => setPrefs(p => ({ ...p, pluginOrder: o }))}
+          collapsed={prefs.pluginCollapsed}
+          onCollapse={(id, v) => setPrefs(p => ({ ...p, pluginCollapsed: { ...p.pluginCollapsed, [id]: v } }))} />
+      ) },
+    { key: 'stats', on: show('showStats'), icon: Icons.activity, title: 'Stats',
+      body: (
+        <StatsStrip
+          visible={prefs.statsVisible || {}}
+          storageOpen={!!prefs.storageOpen}
+          setStorageOpen={(v) => setPrefs(p => ({ ...p, storageOpen: v }))}
+          hosts={statHosts}
+          loaded={statsLoaded}
+          netHistory={netHistory}
+        />
+      ) },
+    ...groups.map(g => ({ key: g.key, on: g.list.length > 0, icon: g.icon, title: g.title, count: g.list.length, body: renderApps(g.list) })),
+  ];
+  const blockByKey = Object.fromEntries(blocks.map(b => [b.key, b]));
+  const sectionIds = applyOrder(blocks.map(b => b.key), prefs.sectionOrder);
+
   return (
     <div className="shell">
       <Header
@@ -1332,63 +1468,22 @@ function Dashboard({ clientPrefs }) {
         </div>
       )}
 
-      <PluginBand plugins={pluginRegistry} manifests={pluginManifests} onOpen={setPluginOpen} />
-
-      <StatsStrip
-        hidden={!show('showStats')}
-        visible={prefs.statsVisible || {}}
-        storageOpen={!!prefs.storageOpen}
-        setStorageOpen={(v) => setPrefs(p => ({ ...p, storageOpen: v }))}
-        hosts={statHosts}
-        loaded={statsLoaded}
-        netHistory={netHistory}
-      />
-
-      {show('showFavs') && favs.length > 0 && (
-        <section className="section">
-          <div className="sect-head">
-            <Icons.star size={16} />
-            <h2>Pinned</h2>
-            <span className="count">{favs.length}</span>
-          </div>
-          <div className="fav-grid">
-            {favs.map(a => <FavCard key={a.id} app={a} health={health} discovery={discovery} plugins={pluginRegistry} onAppsChanged={loadConfig} />)}
-          </div>
-        </section>
-      )}
-
-      {groupBy === 'host' ? (
-        hostGroups.map(host => {
-          const list = shownApps.filter(a => appHost(a) === host.id);
-          if (!list.length) return null;
-          return (
-            <section className="section" key={host.id}>
-              <div className="sect-head">
-                <Icons.server size={16} />
-                <h2>{host.name}</h2>
-                <span className="count">{list.length}</span>
-              </div>
-              {renderApps(list)}
-            </section>
-          );
-        })
-      ) : (
-        categories.map(cat => {
-          const list = shownApps.filter(a => a.cat === cat.id);
-          if (!list.length) return null;
-          const I = Icons[cat.icon] || Icons.server;
-          return (
-            <section className="section" key={cat.id}>
-              <div className="sect-head">
-                <I size={16} />
-                <h2>{cat.label}</h2>
-                <span className="count">{list.length}</span>
-              </div>
-              {renderApps(list)}
-            </section>
-          );
-        })
-      )}
+      {sectionSort.sorted(sectionIds).map(k => {
+        const b = blockByKey[k];
+        if (!b.on) return null;
+        const I = b.icon;
+        return (
+          <section className="section" key={k} {...sectionSort.item(k)}>
+            <div className="sect-head">
+              <I size={16} />
+              <h2>{b.title}</h2>
+              {b.count != null && <span className="count">{b.count}</span>}
+              <button {...sectionSort.grip(k, sectionIds)}><Icons.grip size={14} /></button>
+            </div>
+            {b.body}
+          </section>
+        );
+      })}
 
       {features.showFooter !== false && (
         <footer className="foot">
