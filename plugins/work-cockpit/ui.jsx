@@ -1,7 +1,7 @@
 // Work cockpit plugin - UI.
 //
 // One view of everything Luigi is working on: Jira and Zammad for A-Cube,
-// Linear for Homelab and Personal, plus the Claude Code / Codex sessions open
+// Backlog.md for Homelab and Personal, plus the Claude Code / Codex sessions open
 // right now. Four lanes (Prossimi, Ora, In attesa, Archivio), every card links
 // back to its original source.
 //
@@ -11,7 +11,7 @@
 //
 // The snapshot is read-only: moving, editing, archiving or deleting a card
 // writes a local override in localStorage and never travels back to Jira,
-// Linear or Zammad. Overridden cards say so, and the overrides can be dropped
+// Backlog.md or Zammad. Overridden cards say so, and the overrides can be dropped
 // in one click from the settings pane.
 //
 // Full-screen view, not a modal: deep-linkable as <dashboard>/#work-cockpit.
@@ -27,7 +27,7 @@
   // wrote: a Zammad title stays Italian because that is what the ticket says.
   const AREAS = [
     ["a-cube", "A-Cube", "client work · jira + zammad"],
-    ["personal", "Personal", "linear + agent sessions"],
+    ["personal", "Personal", "backlog + agent sessions"],
     ["homelab", "Homelab", "agent sessions + notes"],
   ];
   // Lane order is the reading order: what is queued, what you are on, what is
@@ -56,14 +56,14 @@
   const DUE_HORIZON_D = 60;  // further out than this, a deadline is not yet actionable
   const DUE_FORGET_D = 60;   // overdue this long means the date is stale, not urgent
   const SOURCE_LABEL = {
-    jira: "jira", linear: "linear", zammad: "zammad", agents: "agent sessions",
+    jira: "jira", backlog: "backlog", zammad: "zammad", agents: "agent sessions",
     pr: "pull requests", llm: "grouping", detail: "summaries", due: "deadlines", push: "publish",
     mail: "mail", slack: "slack", prOpen: "open PRs", triage: "triage", inbox: "inbox on the board",
   };
   // Where a card came from, spelled out: a bare `#331994` says nothing about
   // which system it lives in or what to click.
   const SOURCE_NAME = {
-    jira: "Jira", zammad: "Zammad", linear: "Linear", mail: "Mail", slack: "Slack",
+    jira: "Jira", zammad: "Zammad", backlog: "Backlog", mail: "Mail", slack: "Slack",
     pr: "Pull request", agent: "Agent",
   };
 
@@ -651,7 +651,7 @@
   // --- overrides ------------------------------------------------------------
   // Everything the snapshot cannot own: a lane moved by hand, a title or a
   // description rewritten, an archived or deleted card. They live in this
-  // browser only and never reach Jira, Linear or Zammad.
+  // browser only and never reach Jira, Backlog.md or Zammad.
   function useOverrides() {
     const [overrides, setOverrides] = useState(() => readJson(OV_KEY, {}));
     const patch = useCallback((id, values) => {
@@ -959,7 +959,7 @@
         <section>
           <h3>Where this comes from</h3>
           <p className="local-note">
-            The collector runs on the Mac and folds Jira, Zammad, Linear and the open Claude Code and
+            The collector runs on the Mac and folds Jira, Zammad, Backlog.md and the open Claude Code and
             Codex sessions into one file. The dashboard only reads it: no credential lives here, and
             nothing changed on this page travels back to the sources.
           </p>
@@ -1201,7 +1201,7 @@
             </div>
           </div>
           <p className="local-note">
-            They live in this browser and never reach Jira, Linear or Zammad. If the collector changes a
+            They live in this browser and never reach Jira, Backlog.md or Zammad. If the collector changes a
             task at the source, the local edit stays on top of it until you reset.
           </p>
         </section>
@@ -1219,8 +1219,10 @@
     const [pendingLane, setPendingLane] = useState(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [launch, setLaunch] = useState("");
 
     const detail = task.detail || {};
+    const backlogTask = (task.sources.find(s => s.source === "backlog") || {}).label;
     // What the task is, not what was done to it: `done` belongs in the backlog,
     // and reading it here told you the files touched but never the problem.
     const baseDesc = task.localDesc || detail.what || task.note || detail.done
@@ -1245,6 +1247,7 @@
       setDesc(task.localDesc || "");
       setPendingLane(null);
       setMenuOpen(false);
+      setLaunch("");
     }, [task.id, task.title, task.localDesc]);
 
     useEffect(() => {
@@ -1262,6 +1265,15 @@
 
     const rows = backlog(task, now);
     const prompt = resumePrompt(task, now, baseDesc);
+    const startAgent = agent => {
+      setLaunch("…");
+      fetch("/api/_p/work-cockpit/launch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: backlogTask, agent }),
+      })
+        .then(r => r.json().then(body => setLaunch(body.note || body.error || `HTTP ${r.status}`)))
+        .catch(e => setLaunch(String(e)));
+    };
     const copyPrompt = () => {
       if (!navigator.clipboard) return;
       navigator.clipboard.writeText(prompt).then(() => {
@@ -1462,13 +1474,25 @@
               </ol>
             </section>
 
-            {(task.create && (task.create.jira || task.create.linear)) && (
+            {backlogTask && (
+              <section>
+                <h3>Start an agent on {backlogTask}</h3>
+                <div className="sheet-tags" style={{ marginTop: 12 }}>
+                  {["claude", "codex", "pi"].map(agent => (
+                    <button key={agent} className="btn" type="button" disabled={launch === "…"}
+                            onClick={() => startAgent(agent)}>{agent}</button>
+                  ))}
+                </div>
+                {launch && <p className="sheet-desc" style={{ marginTop: 10 }}>{launch}</p>}
+              </section>
+            )}
+
+            {(task.create && task.create.jira) && (
               <section>
                 <h3>No ticket for this work</h3>
                 <p className="sheet-desc">{task.create.body}</p>
                 <div className="sheet-tags" style={{ marginTop: 12 }}>
-                  {task.create.jira && <a className="btn" href={task.create.jira} target="_blank" rel="noopener">Create in Jira</a>}
-                  {task.create.linear && <a className="btn" href={task.create.linear} target="_blank" rel="noopener">Create in Linear</a>}
+                  <a className="btn" href={task.create.jira} target="_blank" rel="noopener">Create in Jira</a>
                 </div>
               </section>
             )}
