@@ -3,7 +3,7 @@
   "name": "Automations",
   "version": "0.1.0",
   "author": "lglot",
-  "description": "Read-only inventory of cron, launchd, systemd timers and n8n across hosts, with a clear title and expandable explanation precomputed per job.",
+  "description": "Inventory of cron, launchd, systemd timers and n8n across hosts, with a clear title and expandable explanation precomputed per job, and a switch to pause Mac launchd jobs.",
   "homepage": "https://github.com/lglot/lgboard",
   "license": "MIT",
   "lgboardMin": "0.4.0",
@@ -16,9 +16,11 @@
   "server": {
     "module": "server",
     "endpoints": [
-      { "method": "GET", "path": "/api/_p/automations/list" }
+      { "method": "GET", "path": "/api/_p/automations/list" },
+      { "method": "GET", "path": "/api/_p/automations/paused" },
+      { "method": "POST", "path": "/api/_p/automations/pause" }
     ]
   },
 
-  "permissions": []
+  "permissions": ["network.fetch"]
 }
