@@ -2,15 +2,22 @@
 
 The snapshot is produced on the Mac (home_server/work_cockpit/collector.py) and
 pushed here; this plugin only serves the file, so the dashboard never holds a
-Jira, Linear or Zammad credential.
+Jira or Zammad credential.
 
 The one thing it can do besides reading is ask for a fresh run, and even that
 it cannot do directly: the collector lives on the Mac. The request goes out as
 an ntfy message that a listener there picks up.
+
+It can also ask for an agent session on a Backlog.md task. Same pattern: the
+container cannot reach herdr-core, so it leaves a request file that a systemd
+path unit on lgserver picks up (home_server/work_cockpit/launch_agent.sh). The
+request carries only the task id and the agent: the prompt is built on the host
+from the task itself, so a request cannot inject text.
 """
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -18,6 +25,9 @@ import urllib.request
 EMPTY = {"generatedAt": None, "areas": {}, "sessions": [], "sources": {}}
 NTFY = "https://ntfy.sh"
 RUN_COOLDOWN_S = 60
+LAUNCH_AGENTS = ("claude", "codex", "pi")
+LAUNCH_TASK = re.compile(r"^TASK-\d{1,6}$")
+LAUNCH_COOLDOWN_S = 10
 
 
 HEARTBEAT_STALE_S = 240  # the Mac says hello every minute; three misses and it is gone
@@ -27,7 +37,37 @@ def register(ctx):
     ctx.add_route("GET", "/api/_p/work-cockpit/snapshot", lambda req: snapshot(ctx))
     ctx.add_route("POST", "/api/_p/work-cockpit/run", lambda req: request_run(ctx))
     ctx.add_route("POST", "/api/_p/work-cockpit/heartbeat", lambda req: heartbeat(ctx))
+    ctx.add_route("POST", "/api/_p/work-cockpit/launch", lambda req: request_launch(ctx, req))
     ctx._last_run_request = 0.0
+    ctx._last_launch = 0.0
+
+
+def request_launch(ctx, req):
+    """Queue an agent session on a Backlog.md task for the host-side launcher.
+    Only through lgser.me: Authelia sets Remote-User. Never through ntfy, unlike
+    Run now, because this one starts an agent with shell access."""
+    # shortcut: the LAN bind 192.168.1.161:8080 has no auth and a LAN client can
+    # forge the header; close it by binding the dashboard to SWAG only.
+    if not req.user:
+        return 403, {"error": "Avvio agenti solo da lgser.me con login Authelia."}
+    body = req.body if isinstance(req.body, dict) else {}
+    task, agent = str(body.get("task", "")), str(body.get("agent", ""))
+    if not LAUNCH_TASK.match(task) or agent not in LAUNCH_AGENTS:
+        return 400, {"error": "Serve un task Backlog.md (TASK-n) e un agente tra claude, codex, pi."}
+    now = time.time()
+    if now - getattr(ctx, "_last_launch", 0) < LAUNCH_COOLDOWN_S:
+        return 429, {"error": "Un avvio e' appena partito, riprova tra qualche secondo."}
+    folder = ctx.config_dir / "data" / "launch"
+    path = folder / f"{int(now * 1000)}-{task}-{agent}.json"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"task": task, "agent": agent, "by": req.user}), encoding="utf-8")
+    except OSError as exc:
+        return 500, {"error": f"Richiesta non scrivibile: {exc}"}
+    ctx._last_launch = now
+    return 202, {"requested": True,
+                 "note": f"{agent} su {task}: parte su lgserver in Herdr come terminale "
+                         f"{task.lower()}-{agent}-<ora>. Dal telefono: hc attach."}
 
 
 def _beat_file(ctx):
