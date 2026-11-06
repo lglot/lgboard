@@ -98,7 +98,7 @@ const DESIGN_BASES = [
   { id: 'indice', label: 'Indice', fontDisplay: 'Figtree', fontMono: 'JetBrains Mono', order: ['stats', 'pinned', '*', 'plugins'],
     light: { accent: '#2F63D8', bg: '#FAFAF8', bgElev: '#FFFFFF', ink: '#16171A', line: '#E5E4DF' },
     dark:  { accent: 'oklch(76% 0.15 262)', bg: '#111214', bgElev: '#18191C', ink: '#EDEEF0', line: '#2A2C31' } },
-  { id: 'tabellone', label: 'Tabellone', fontDisplay: 'Overpass', fontMono: 'Overpass Mono', order: ['stats', 'pinned', 'plugins', '*'],
+  { id: 'tabellone', label: 'Tabellone', fontDisplay: 'Overpass', fontMono: 'Overpass Mono', order: ['stats', 'pinned', '*', 'plugins'],
     light: { accent: '#2C6BED', bg: '#F2F2EE', bgElev: '#FFFFFF', ink: '#111214', line: '#E0DFD8' },
     dark:  { accent: 'oklch(78% 0.13 262)', bg: '#0A0D12', bgElev: '#0F141B', ink: '#F3F5F7', line: '#1E2630' } },
   { id: 'linee', label: 'Linee', fontDisplay: 'Fira Sans', fontMono: 'JetBrains Mono', order: ['pinned', '*', 'stats', 'plugins'],

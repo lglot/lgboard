@@ -16,7 +16,7 @@
   // Reachability is not in config.json: it reads off the service's own URL.
   const accessOf = (app) => {
     const u = app.url || '';
-    if (/\.ts\.net|\/\/100\.\d+\./.test(u)) return 'Tailscale';
+    if (/\.ts\.net|\/\/100\.\d+\./.test(u) || /tailscale/i.test(app.desc || '')) return 'Tailscale';
     if (/\/\/(192\.168|10)\.\d+\./.test(u)) return 'LAN';
     return null;
   };

@@ -1525,7 +1525,7 @@ function Dashboard({ clientPrefs }) {
   // What every design layout gets: the same data and the same actions as classic.
   const layoutCtx = {
     cfg, branding: cfg.branding || {}, features, show, apps, shownApps, favs, favIds, favById, categories, blocks, blockByKey, sectionIds,
-    hosts: statHosts, statsLoaded, netHistory, health, discovery,
+    hosts: statHosts, statsLoaded, netHistory, health, discovery, appHost, hostName,
     plugins: pluginRegistry, manifests: pluginManifests, pluginList, openPlugin: setPluginOpen,
     prefs, setPrefs, mode, setMode: switchMode, density: prefs.density ?? cfg.theme?.density ?? 'comfortable',
     openSearch: () => setCmdOpen(true), tweaksOpen, toggleTweaks,
