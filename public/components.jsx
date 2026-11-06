@@ -224,6 +224,8 @@ function loadLayout(id) {
     tag.dataset.layout = id;
     tag.textContent = window.Babel.transform(await res.text(), { presets: ['react'] }).code;
     document.head.appendChild(tag);
+    // A throw inside an inline script doesn't reject: without this the home stays blank.
+    if (!window.__lgboardLayouts[id]) throw new Error('layout did not register');
   })();
   return layoutLoads[id];
 }
@@ -1279,7 +1281,7 @@ function Dashboard({ clientPrefs }) {
   // Layout order lives in prefs (localStorage): each device keeps its own.
   // Each design keeps its own section order, so reordering one leaves the others alone.
   const sectionSort = useSortable('section', (o) => setPrefs(p => {
-    const lay = resolveTheme(p.theme, p.customThemes || []).layout;
+    const lay = resolveTheme(p.theme ?? cfg?.theme?.accent, p.customThemes || []).layout;
     return { ...p, [lay ? `sectionOrder:${lay}` : 'sectionOrder']: o };
   }));
   const favSort = useSortable('fav', (o) => setPrefs(p => ({ ...p, favOrder: o })));
@@ -1393,8 +1395,7 @@ function Dashboard({ clientPrefs }) {
   const pickTheme = (id) => setPrefs(p => {
     const th = resolveTheme(id, p.customThemes || []);
     const m = th.forceMode || p.mode || 'dark';
-    return { ...p, theme: id, mode: m,
-      [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: id };
+    return { ...p, theme: id, mode: m, ...(th.layout ? {} : { [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: id }) };
   });
   // Toggle light/dark. Remember the theme we're leaving, then restore the last
   // theme used in the target mode (default to that mode's Ink accent).
@@ -1402,10 +1403,10 @@ function Dashboard({ clientPrefs }) {
     const curMode = p.mode || cfg?.theme?.mode || 'dark';
     const curId = normalizeThemeId(p.theme ?? cfg?.theme?.accent ?? 'ink', curMode);
     const leaving = curMode === 'light' ? 'lastLightTheme' : 'lastDarkTheme';
-    const memo = { ...p, [leaving]: curId };
-    // A design stays the same design across modes.
+    // A design stays the same design across modes, and is never the "last classic theme".
     const curLayout = resolveTheme(curId, p.customThemes || []).layout;
-    if (curLayout) return { ...memo, mode: m, theme: `${curLayout}-${m}` };
+    if (curLayout) return { ...p, mode: m, theme: `${curLayout}-${m}` };
+    const memo = { ...p, [leaving]: curId };
     let target = (m === 'light' ? memo.lastLightTheme : memo.lastDarkTheme) || `ink-${m}`;
     const t = resolveTheme(target, p.customThemes || []);
     if ((t.forceMode || m) !== m || t.layout) target = `ink-${m}`;
@@ -1414,8 +1415,12 @@ function Dashboard({ clientPrefs }) {
   // Tweaks' Design picker: a design in the current mode, or back to the last classic theme.
   const pickDesign = (layout) => setPrefs(p => {
     const m = p.mode || cfg?.theme?.mode || 'dark';
-    if (layout) return { ...p, mode: m, theme: `${layout}-${m}` };
-    const last = m === 'light' ? p.lastLightTheme : p.lastDarkTheme;
+    const key = m === 'light' ? 'lastLightTheme' : 'lastDarkTheme';
+    if (layout) {
+      const cur = normalizeThemeId(p.theme ?? cfg?.theme?.accent ?? 'ink', m);
+      return { ...p, mode: m, theme: `${layout}-${m}`, ...(resolveTheme(cur, p.customThemes || []).layout ? {} : { [key]: cur }) };
+    }
+    const last = p[key];
     const t = last && resolveTheme(last, p.customThemes || []);
     return { ...p, mode: m, theme: t && !t.layout && (t.forceMode || m) === m ? last : `ink-${m}` };
   });

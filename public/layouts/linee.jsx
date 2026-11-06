@@ -201,7 +201,7 @@
               )}
               {isOpen && openDrawer === 'stor' && (
                 <div className="ln-sub">
-                  {h.disks.map(d => (
+                  {(h.disks || []).map(d => (
                     <React.Fragment key={d.id || d.label}>
                       <span className="num">{d.label} · {formatBytes(d.usedBytes)} / {formatBytes(d.totalBytes)}</span>
                       <span className="trk"><i className={d.pct >= WARN_PCT ? 'warn' : ''} style={{ width: `${Math.min(100, d.pct)}%` }} /></span>
@@ -211,13 +211,13 @@
               )}
               {isOpen && openDrawer === 'cont' && (
                 <div className="ln-sub ctrs" tabIndex={0} aria-label={`Container di ${h.name}`}>
-                  {(h.containers.items || []).map(c => (
+                  {(h.containers?.items || []).map(c => (
                     <span className="ctr" key={c.name} title={c.image || ''}>
                       <i className={`ln-dot ${c.state === 'running' ? '' : 'idle'}`} /><span>{c.name}</span>
                       {c.state !== 'running' && <em>{c.state}</em>}
                     </span>
                   ))}
-                  {!(h.containers.items || []).length && <span>Nessun container</span>}
+                  {!(h.containers?.items || []).length && <span>Nessun container</span>}
                 </div>
               )}
             </div>

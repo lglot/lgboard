@@ -62,7 +62,7 @@
         </div>
         {ctx.hosts.map(h => {
           const off = h.status === 'down';
-          const open = drawer?.startsWith(h.id + ':') ? drawer.split(':')[1] : null;
+          const open = !off && drawer?.startsWith(h.id + ':') ? drawer.split(':')[1] : null;
           return (
             <React.Fragment key={h.id}>
               <div className={`hrow ${off ? 'off' : ''}`} style={grid}>
@@ -85,7 +85,7 @@
               </div>
               {open === 'stor' && (
                 <div className="drawer"><div className="g">
-                  {h.disks.map(d => (
+                  {(h.disks || []).map(d => (
                     <div className="disk" key={d.id || d.label}>
                       <div className="r"><b>{d.label}</b><span className="num">{formatBytes(d.usedBytes)} / {formatBytes(d.totalBytes)}</span></div>
                       <span className="meter"><span className="t"><i className={d.pct >= WARN_PCT ? 'warn' : ''} style={{ width: `${d.pct}%` }} /></span></span>
@@ -95,13 +95,13 @@
               )}
               {open === 'cont' && (
                 <div className="drawer"><div className="g">
-                  {(h.containers.items || []).map(c => (
+                  {(h.containers?.items || []).map(c => (
                     <span className="ctr" key={c.name} title={c.image || ''}>
                       <i className={`dot ${c.state === 'running' ? '' : 'idle'}`} />{c.name}
                       {c.state !== 'running' && <em>{c.state}</em>}
                     </span>
                   ))}
-                  {!(h.containers.items || []).length && <span>Nessun container</span>}
+                  {!(h.containers?.items || []).length && <span>Nessun container</span>}
                 </div></div>
               )}
             </React.Fragment>
