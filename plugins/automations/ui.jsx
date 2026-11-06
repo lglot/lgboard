@@ -1,7 +1,8 @@
 // Automations plugin — UI.
 //
 // The home card says how many runs are due in the next hour; the surface it
-// opens lists every scheduled job collected across hosts. Read-only. Each job
+// opens lists every scheduled job collected across hosts. Mac launchd jobs have
+// a switch to pause them; everything else is read-only. Each job
 // shows a clear title (precomputed by the collector via the llm-gateway) with
 // the schedule beside it; a row expands into its detail card (explanation,
 // schedule, next/last run, log, command). No runtime LLM.
@@ -17,6 +18,29 @@
 
   const MIN = 60_000;
   const ENDPOINT = '/api/_p/automations/list';
+  const PAUSED_ENDPOINT = '/api/_p/automations/paused';
+  const PAUSE_ENDPOINT = '/api/_p/automations/pause';
+  const MAC_LAUNCHD_PREFIX = 'mac:launchd:';
+
+  const STYLE = `
+    .am-row.am-switchable { grid-template-columns: 10px minmax(0, 1fr) max-content max-content 18px; }
+    .am-row.am-paused .pm-main, .am-row.am-paused .pm-right { opacity: 0.55; }
+    .am-switch-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: default; }
+    .am-switch-err { max-width: 24ch; font-size: 12px; color: var(--down); }
+    .am-switch { position: relative; width: 34px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 999px;
+      background: transparent; cursor: pointer; transition: background 120ms ease; }
+    .am-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--idle); transition: transform 120ms ease; }
+    .am-switch.on { background: color-mix(in oklab, var(--up) 30%, transparent); border-color: var(--up); }
+    .am-switch.on::after { transform: translateX(14px); background: var(--up); }
+    .am-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .am-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+    @media (max-width: 700px) {
+      .am-row.am-switchable { grid-template-columns: 10px minmax(0, 1fr) max-content 18px; }
+      .am-row.am-switchable .pm-right { grid-column: 2 / -1; grid-row: 2; flex-wrap: wrap; }
+    }
+    @media (prefers-reduced-motion: reduce) { .am-switch, .am-switch::after { transition: none; } }
+  `;
 
   function pluginFetch(path) {
     return fetch(path, { cache: 'no-store' }).then(r => r.json());
@@ -122,7 +146,55 @@
   }
 
   /* ---------------- rows ---------------- */
-  function JobRow({ a, now }) {
+  // Live from the Mac, not from the inventory: the collector can be 45 minutes behind.
+  function usePaused(active) {
+    const [state, setState] = useState({ reachable: false, labels: [], loading: true });
+    const reload = useCallback(() => pluginFetch(PAUSED_ENDPOINT)
+      .then(d => setState({ labels: [], ...d }))
+      .catch(() => setState({ reachable: false, labels: [], error: 'lgboard non risponde' })), []);
+    useEffect(() => {
+      if (!active) return;
+      reload();
+      const id = setInterval(reload, 30_000);
+      return () => clearInterval(id);
+    }, [active, reload]);
+    return [state, reload];
+  }
+
+  const labelOf = (a) => a.id.slice(MAC_LAUNCHD_PREFIX.length);
+  const canPause = (a) => a.id.startsWith(MAC_LAUNCHD_PREFIX);
+
+  function PauseSwitch({ a, pause }) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
+    const paused = pause.state.labels.includes(labelOf(a));
+    const off = !pause.state.reachable;
+    const flip = async (e) => {
+      e.stopPropagation();
+      setBusy(true); setError(null);
+      try {
+        const r = await fetch(PAUSE_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: a.id, paused: !paused }),
+        });
+        if (!r.ok) setError((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      } catch {
+        setError('lgboard non risponde');
+      }
+      await pause.reload();
+      setBusy(false);
+    };
+    const hint = off ? (pause.state.error || 'stato sconosciuto') : paused ? 'In pausa: clic per riattivare' : 'Attiva: clic per mettere in pausa';
+    return (
+      <span className="am-switch-wrap" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        {error && <span className="am-switch-err" role="alert">{error}</span>}
+        <button type="button" role="switch" className={`am-switch${paused ? '' : ' on'}`} aria-checked={!paused}
+          aria-label={`${a.title || a.name} attiva`} title={error || hint} disabled={off || busy} onClick={flip} />
+      </span>
+    );
+  }
+
+  function JobRow({ a, now, pause }) {
     const [open, setOpen] = useState(false);
     const toggle = () => setOpen(o => !o);
     const fires = firesWithin(a, now, 60);
@@ -140,22 +212,27 @@
       a.log_path ? ['log', a.log_path, true] : null,
       a.source ? ['fonte', a.source, true] : null,
     ].filter(Boolean);
+    const switchable = pause && canPause(a);
+    const paused = switchable && pause.state.labels.includes(labelOf(a));
     return (
       <>
-        <div className={`pm-row click${open ? ' open' : ''}`} role="button" tabIndex={0} aria-expanded={open}
+        <div className={`pm-row click am-row${switchable ? ' am-switchable' : ''}${paused ? ' am-paused' : ''}${open ? ' open' : ''}`}
+          role="button" tabIndex={0} aria-expanded={open}
           onClick={toggle}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
-          <span className={`dot dot-${a.last_status === 'fail' ? 'down' : a.last_status === 'ok' ? 'up' : 'unknown'}`} />
+          <span className={`dot dot-${paused ? 'idle' : a.last_status === 'fail' ? 'down' : a.last_status === 'ok' ? 'up' : 'unknown'}`} />
           <div className="pm-main">
             <div className="pm-name">
               {a.title || a.name}
               <span className="pm-tag">{a.type}</span>
+              {paused && <span className="pm-tag">in pausa</span>}
             </div>
           </div>
           <div className="pm-right">
             <b>{a.schedule_human}</b>
             <span className="muted">{a.last_run ? fmtAge(a.last_run, now) : 'mai eseguita'}</span>
           </div>
+          {switchable && <PauseSwitch a={a} pause={pause} />}
           <PluginChevron open={open} />
         </div>
         {open && (
@@ -255,6 +332,8 @@
   /* ---------------- surface ---------------- */
   function Surface({ open, onClose }) {
     const [doc, reload] = useAutomations(open, 60_000);
+    const [pauseState, reloadPaused] = usePaused(open);
+    const pause = { state: pauseState, reload: reloadPaused };
     const [q, setQ] = useState('');
     const [host, setHost] = useState('all');
     const [view, setView] = useState('all');
@@ -319,6 +398,7 @@
 
     return (
       <div className="modal-scrim" onClick={onClose}>
+        <style>{STYLE}</style>
         <PluginModal icon="clock" tone={skipped.length ? 'warn' : null} title="Automazioni"
           sub={doc
             ? `${hostIds.length} host · raccolto ${fmtAge(doc.generatedAt, Date.now())}`
@@ -355,7 +435,7 @@
                       ultima attività {fmtAge(Math.max(0, ...byHost[h].map(a => a.last_run || 0)), now)}
                     </span>
                   </div>
-                  {byHost[h].map(a => <JobRow key={a.id} a={a} now={now} />)}
+                  {byHost[h].map(a => <JobRow key={a.id} a={a} now={now} pause={pause} />)}
                 </div>
               ))}
 
@@ -366,7 +446,7 @@
               {sys.length > 0 && (
                 <details className="pm-more" open={!!q}>
                   <summary>{sys.length} job di sistema (OS) — apt, logrotate, fstrim…</summary>
-                  {sys.map(a => <JobRow key={a.id} a={a} now={now} />)}
+                  {sys.map(a => <JobRow key={a.id} a={a} now={now} pause={pause} />)}
                 </details>
               )}
             </>

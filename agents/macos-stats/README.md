@@ -5,7 +5,18 @@ stdlib agent lets a Mac appear as a host in lgboard's multi-host view by serving
 the single-host `/api/stats` payload from native macOS metrics
 (`top`, `vm_stat`, `df`, `sysctl`, `netstat`, plus `docker ps` best-effort).
 
-No dependencies, no secrets — it only exposes read-only system metrics.
+No dependencies. Metrics are read-only and public on the tailnet. The only write
+is pausing the user's own `com.luigi.*` LaunchAgents, for the switch in lgboard's
+Automations panel:
+
+- `GET /api/automations/paused`, `POST /api/automations/pause` with `{"label", "paused"}`;
+- `Authorization: Bearer <token>`, read from `~/.config/lgboard/agent-token` (mode 600).
+  No file means no control;
+- pausing is `launchctl disable` + `bootout`, so it survives reboots and stops a run
+  in progress. Resuming is `enable` + `bootstrap`, so a `RunAtLoad` job starts right away.
+
+The hub needs the same token in `/config/plugins/automations/config.json`:
+`{"macAgentUrl": "http://<mac-tailnet-ip>:8077", "macAgentToken": "<token>"}`.
 
 ## Run (foreground)
 
