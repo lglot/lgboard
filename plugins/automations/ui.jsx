@@ -27,6 +27,7 @@
     .am-row.am-paused .pm-main, .am-row.am-paused .pm-right { opacity: 0.55; }
     .am-switch-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: default; }
     .am-switch-err { max-width: 24ch; font-size: 12px; color: var(--down); }
+    .am-offline { margin: 10px 0 0; font-size: 12px; color: var(--ink-soft); }
     .am-switch { position: relative; width: 34px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 999px;
       background: transparent; cursor: pointer; transition: background 120ms ease; }
     .am-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
@@ -435,6 +436,10 @@
                       ultima attività {fmtAge(Math.max(0, ...byHost[h].map(a => a.last_run || 0)), now)}
                     </span>
                   </div>
+                  {/* The switch tooltip is invisible on touch, so say it in the open. */}
+                  {!pause.state.reachable && !pause.state.loading && byHost[h].some(canPause) && (
+                    <div className="am-offline" role="status">{pause.state.error || 'stato sconosciuto'}: switch di pausa disattivati</div>
+                  )}
                   {byHost[h].map(a => <JobRow key={a.id} a={a} now={now} pause={pause} />)}
                 </div>
               ))}
