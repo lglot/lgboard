@@ -96,11 +96,38 @@ function Monogram({ name, size = 22 }) {
   );
 }
 
+// Official service logos, bundled in public/brand. Keyed by app id, then by glyph key.
+const BRAND_LOGOS = {
+  jellyfin: 'jellyfin.png', sonarr: 'sonarr.png', radarr: 'radarr.png', bazarr: 'bazarr.png',
+  prowlarr: 'prowlarr.png', immich: 'immich.png', karakeep: 'karakeep.png', qbit: 'qbittorrent.png',
+  qbittorrent: 'qbittorrent.png', ha: 'home-assistant.png', 'actual-budget': 'actual-budget.png',
+  ntfy: 'ntfy.png', dockhand: 'dockhand.png', dozzle: 'dozzle.png', authelia: 'authelia.png',
+  lldap: 'lldap.png', backrest: 'backrest.png', 'uptime-kuma': 'uptime-kuma.png',
+  watchtower: 'watchtower.png', n8n: 'n8n.png', 'wiki-mdnest': 'wiki.svg', collie: 'collie.png',
+  paperless: 'paperless-ngx.png', '2fauth': '2fauth.png', forgejo: 'forgejo.png', frigate: 'frigate.png',
+};
+const BRAND_MONOGRAMS = { 'agent-tower': 'AT', 'hermes-dash': 'He', 'day-and-queue': 'DQ', 'secrets-vault': 'VP', iliadbox: 'IB' };
+const brandLogo = (app) => {
+  if (app.logo) return app.logo;
+  const file = BRAND_LOGOS[app.id] || BRAND_LOGOS[app.icon];
+  return file ? `brand/${file}` : null;
+};
+const brandMonogram = (app) => BRAND_MONOGRAMS[app.id]
+  || (app.name || '?').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+
+// The mark a design's plate holds: the official logo, or the service's monogram.
+function BrandMark({ app }) {
+  const src = brandLogo(app);
+  return src ? <img className="brand-logo" src={src} alt="" /> : <b className="brand-mono">{brandMonogram(app)}</b>;
+}
+
 function AppIcon({ app, size = 22 }) {
+  const logo = brandLogo(app);
+  if (logo) return <img className="brand-logo" src={logo} alt="" width={size} height={size} />;
   if (app.iconSvgPath) return <Ico d={app.iconSvgPath} size={size} />;
   const key = app.icon || app.id;
   if (key && Icons[key]) { const I = Icons[key]; return <I size={size} />; }
   return <Monogram name={app.name} size={size} />;
 }
 
-Object.assign(window, { Ico, Icons, Monogram, AppIcon });
+Object.assign(window, { Ico, Icons, Monogram, AppIcon, BrandMark, brandLogo, brandMonogram });

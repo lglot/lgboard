@@ -100,6 +100,14 @@ Pick an accent via `theme.accent` (`ink`, `emerald`, `amber`, `rose`, `violet`,
 entries in `theme.availableThemes` — the Tweaks panel reflects the change.
 
 Fonts default to Space Grotesk + JetBrains Mono loaded from Google Fonts.
+Four design themes replace the whole home page, not just the colors: **Indice**
+(host table, box-free index), **Tabellone** (departures board), **Linee** (transit
+map) and **Riquadri** (bento tiles). Each comes light and dark: pick one from
+Design in the Tweaks panel or from the Theme gallery, or set `theme.accent` to e.g.
+`"indice-dark"`. They live in `public/layouts/<id>.jsx` + `.css`, compiled only when
+selected. Official service logos are bundled in `public/brand/`; a service can
+point to its own with `"logo": "<url>"` in `config.json`.
+
 Set `theme.fontsOffline: true` to skip the external fetch (then the browser
 falls back to system fonts, or to anything you drop into `public/vendor/fonts/`).
 

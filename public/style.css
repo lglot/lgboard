@@ -805,10 +805,23 @@ body.sorting, body.sorting * { cursor: grabbing !important; user-select: none; -
 body.tweaks-open .shell {
   padding-right: calc(var(--tweaks-w) + var(--gutter-pct));
 }
+body.tweaks-open .lay { padding-right: var(--tweaks-w); }
 @media (max-width: 860px) {
   /* narrow: let the drawer overlay instead of squeezing the content */
   body.tweaks-open .shell { padding-right: var(--gutter-pct); }
+  body.tweaks-open .lay { padding-right: 0; }
 }
+.lay { min-height: 100vh; transition: padding 420ms cubic-bezier(0.22, 1, 0.36, 1); }
+.brand-logo { display: block; object-fit: contain; }
+/* Many official logos are dark marks: every logo sits on a light plate, in both modes. */
+.fav-icon:has(.brand-logo), .tile-icon:has(.brand-logo) { background: #F3F5F7; border-color: transparent; }
+.tw-designs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tw-designs button {
+  height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent;
+  color: var(--ink-mid); font: inherit; font-size: 13px; cursor: pointer;
+}
+.tw-designs button:hover { color: var(--ink); border-color: var(--ink-soft); }
+.tw-designs button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .tweaks {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: var(--tweaks-w); max-width: 92vw;
