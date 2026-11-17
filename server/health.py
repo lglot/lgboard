@@ -138,7 +138,10 @@ class HealthChecker:
             probe_type = "container" if a.get("_discovered") else "internal"
             res = self._probe_internal(internal_url, probe_type)
             res["probedUrl"] = internal_url
-            return res
+            # A discovered container name that does not resolve means lgboard is
+            # not on that container's network: not a failure, use its state below.
+            if not (a.get("_discovered") and res.get("reason") == "unreachable"):
+                return res
 
         # 2. a local container is matched but exposes no probeable url → trust
         #    the container state as authoritative.
