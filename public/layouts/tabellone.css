@@ -1,0 +1,192 @@
+/* Design "Tabellone". Scoped to .lay-tabellone; --bg, --ink, --line, --accent come from the theme.
+   Every class is tb- prefixed: style.css owns .row, .dot, .btn, .grip, .plug and friends. */
+:root[data-layout="tabellone"][data-mode="dark"]  { --band:#0F141B; --band-ink:#F3F5F7; --row:#0D1218; --row2:#10161E; --ink2:#BCC4CE; --ink3:#97A1AE; --amber:#FFB547; --red:#FF6A5F; --ok:#4BD47F; --plate:#F3F5F7; --chip:#151C25; --up:#4BD47F; --down:#FF6A5F; }
+:root[data-layout="tabellone"][data-mode="light"] { --band:#FFD200; --band-ink:#111111; --row:#FFFFFF; --row2:#F8F8F5; --ink2:#3C4048; --ink3:#575C66; --amber:#9A5A00; --red:#C42B22; --ok:#16804A; --plate:#FFFFFF; --chip:#FFFFFF; --up:#16804A; --down:#C42B22; }
+:root[data-layout="tabellone"] ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); }
+
+/* Overpass ships U+00B7 with zero advance, so the " · " in config descriptions collapses: borrow just that glyph. */
+@font-face { font-family: "tb-middot"; src: local("Helvetica Neue"), local("Arial"), local("Roboto"), local("DejaVu Sans"); unicode-range: U+B7; }
+.lay-tabellone, .lay-tabellone .plug-main, .lay-tabellone .plug-val { font-family: "tb-middot", var(--ff-ui); }
+.lay-tabellone { background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.35; -webkit-font-smoothing: antialiased; }
+.lay-tabellone *, .lay-tabellone *::before { box-sizing: border-box; }
+/* :where keeps this below .pin-btn and .grip, which set their own color. */
+:where(.lay-tabellone) button { font: inherit; color: inherit; }
+.lay-tabellone :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lay-tabellone .tb-band :focus-visible { outline-color: currentColor; }
+.lay-tabellone .tb-mono { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+.lay-tabellone .tb-tools { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+
+/* band */
+.lay-tabellone .tb-band { background: var(--band); color: var(--band-ink); }
+.lay-tabellone .tb-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 14px 28px; }
+.lay-tabellone .tb-brand { display: flex; align-items: center; gap: 12px; margin-right: auto; min-width: 0; }
+.lay-tabellone .tb-brand .m { width: 36px; height: 36px; flex: none; display: grid; place-items: center; background: var(--band-ink); color: var(--band); font-weight: 700; font-size: 19px; }
+.lay-tabellone .tb-brand b { display: block; font-size: 17px; font-weight: 700; letter-spacing: .01em; line-height: 1.1; }
+.lay-tabellone .tb-brand span { font-size: 13px; opacity: .78; }
+.lay-tabellone .tb-clock { display: flex; align-items: baseline; gap: 12px; }
+/* The theme font loader ships the mono at 400 and 500 only; 500 avoids faux bold. */
+.lay-tabellone .tb-clock b { font-size: 34px; font-weight: 500; letter-spacing: .02em; line-height: 1; }
+.lay-tabellone .tb-clock span { font-size: 14px; opacity: .8; }
+.lay-tabellone .tb-acts { display: flex; gap: 8px; }
+.lay-tabellone .tb-btn { height: 38px; min-width: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1.5px solid currentColor; background: transparent; cursor: pointer; font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; }
+.lay-tabellone .tb-btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); }
+.lay-tabellone .tb-btn.sm { height: 30px; font-size: 13px; padding: 0 10px; }
+.lay-tabellone .tb-band .tb-btn.solid { background: var(--band-ink); color: var(--band); border-color: var(--band-ink); }
+.lay-tabellone kbd { font: inherit; font-family: var(--ff-mono); font-size: 12px; opacity: .8; padding: 0; background: none; border: 0; box-shadow: none; color: inherit; }
+
+/* host vitals */
+.lay-tabellone .tb-hosts { position: relative; display: flex; flex-wrap: wrap; border-top: 1px solid color-mix(in oklab, var(--band-ink) 18%, transparent); }
+.lay-tabellone .tb-hosts.closed { min-height: 46px; align-items: center; }
+.lay-tabellone .tb-host-sum { padding: 12px 56px 12px 28px; font-size: 14px; font-weight: 600; }
+.lay-tabellone .tb-hosts-tog { position: absolute; top: 8px; right: 14px; }
+.lay-tabellone .tb-host { flex: 1 1 705px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 12px 44px 12px 28px; margin: -1px 0 0 -1px; border-top: 1px solid color-mix(in oklab, var(--band-ink) 18%, transparent); border-left: 1px solid color-mix(in oklab, var(--band-ink) 18%, transparent); }
+.lay-tabellone .tb-host h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; min-width: 96px; }
+.lay-tabellone .tb-kv { display: flex; flex-direction: column; gap: 1px; min-width: 48px; border: 0; background: transparent; padding: 0; text-align: left; }
+.lay-tabellone .tb-kv.is-net { min-width: 100px; }
+.lay-tabellone .tb-kv.is-btn { cursor: pointer; border-bottom: 1.5px dashed color-mix(in oklab, var(--band-ink) 45%, transparent); }
+.lay-tabellone .tb-kv.is-btn:hover, .lay-tabellone .tb-kv.is-btn[aria-expanded="true"] { border-bottom-style: solid; border-bottom-color: currentColor; }
+.lay-tabellone .tb-kv small { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .72; }
+.lay-tabellone .tb-kv b { font-size: 18px; font-weight: 500; white-space: nowrap; }
+.lay-tabellone .tb-kv b.warn { text-decoration: underline 3px; text-underline-offset: 4px; text-decoration-color: var(--amber); }
+.lay-tabellone .tb-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; display: inline-block; }
+.lay-tabellone .tb-dot.down { background: var(--red); }
+.lay-tabellone .tb-dot.slow { background: var(--amber); }
+.lay-tabellone .tb-dot.unknown { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink3); }
+
+/* page */
+.lay-tabellone .tb-wrap { padding: 0 28px 40px; max-width: 1500px; margin: 0 auto; }
+.lay-tabellone .tb-qa { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 18px; }
+.lay-tabellone .tb-qa .tb-btn.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.lay-tabellone .tb-drawer { margin-top: 14px; padding: 14px 16px; background: var(--row); border: 1px solid var(--line); }
+.lay-tabellone .tb-drawer h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+.lay-tabellone .tb-disks { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 28px; }
+.lay-tabellone .tb-disks .r { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; margin-bottom: 6px; }
+.lay-tabellone .tb-trk { height: 6px; background: var(--line); }
+.lay-tabellone .tb-trk i { display: block; height: 100%; background: var(--ink2); }
+.lay-tabellone .tb-trk i.warn { background: var(--amber); }
+.lay-tabellone .tb-clist { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px 24px; font-size: 13px; color: var(--ink2); }
+.lay-tabellone .tb-clist > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lay-tabellone .tb-clist .n { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lay-tabellone .tb-clist em { font-style: normal; color: var(--ink3); margin-left: auto; }
+
+.lay-tabellone .tb-sh { display: flex; align-items: center; gap: 12px; margin: 26px 0 10px; }
+.lay-tabellone .tb-sh h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); }
+.lay-tabellone .tb-ib { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer; color: inherit; opacity: .75; }
+.lay-tabellone .tb-ib:hover { opacity: 1; }
+.lay-tabellone .tb-ib svg { transition: transform .2s cubic-bezier(.2,.8,.2,1); }
+.lay-tabellone .tb-ib.closed svg { transform: rotate(-90deg); }
+.lay-tabellone .grip { color: inherit; opacity: .7; border-radius: 0; }
+.lay-tabellone .grip:hover, .lay-tabellone .grip:focus-visible { opacity: 1; color: var(--accent); background: none; }
+.lay-tabellone [data-dragging] { opacity: .6; }
+
+/* plate: always light, many logos are dark marks */
+.lay-tabellone .tb-plate { width: 32px; height: 32px; flex: none; border-radius: 6px; background: var(--plate); display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.lay-tabellone .tb-plate .brand-logo { width: 72%; height: 72%; }
+.lay-tabellone .tb-plate .brand-mono { font-size: 12px; font-weight: 700; color: #33373E; letter-spacing: .02em; }
+.lay-tabellone .is-down .tb-plate .brand-logo { filter: grayscale(100%) contrast(110%); opacity: .5; }
+
+/* pinned */
+.lay-tabellone .tb-pins { display: flex; flex-wrap: wrap; gap: 8px; }
+.lay-tabellone .tb-pin { position: relative; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px 0 6px; background: var(--chip); border: 1px solid var(--line); text-decoration: none; font-weight: 600; font-size: 14px; }
+.lay-tabellone .tb-pin:hover { border-color: var(--ink3); }
+.lay-tabellone .tb-pin-tools { position: absolute; top: 0; right: 0; bottom: 0; padding: 0 4px; display: flex; align-items: center; background: var(--chip); opacity: 0; }
+.lay-tabellone .tb-pin:hover .tb-pin-tools, .lay-tabellone .tb-pin:focus-within .tb-pin-tools { opacity: 1; }
+.lay-tabellone .tb-pin .pin-btn { opacity: 1; }
+
+/* board */
+.lay-tabellone .tb-boardbox { container-type: inline-size; margin-top: 30px; }
+.lay-tabellone .tb-tabs { display: flex; flex-wrap: wrap; border-bottom: 2px solid var(--ink); }
+.lay-tabellone .tb-tablist { display: flex; flex-wrap: wrap; }
+.lay-tabellone .tb-tablist button { height: 42px; padding: 0 16px; border: 0; background: transparent; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--ink3); border-bottom: 4px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.lay-tabellone .tb-tablist button:hover { color: var(--ink); }
+.lay-tabellone .tb-tablist button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.lay-tabellone .tb-sum { margin-left: auto; align-self: center; font-size: 13px; color: var(--ink3); padding-left: 16px; }
+.lay-tabellone .tb-board { --tb-grid: 52px minmax(170px, 2.4fr) minmax(130px, 1.3fr) 104px 104px 150px 88px minmax(44px, max-content); border: 1px solid var(--line); border-top: 0; }
+.lay-tabellone .tb-cols, .lay-tabellone .tb-row { display: grid; grid-template-columns: var(--tb-grid); align-items: center; column-gap: 14px; padding: 0 14px; }
+.lay-tabellone .tb-cols { height: 36px; background: var(--row2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); border-bottom: 1px solid var(--line); }
+.lay-tabellone .tb-grp { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; background: var(--row2); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--ink); }
+.lay-tabellone .tb-grp .n { color: var(--ink3); font-weight: 500; }
+.lay-tabellone .tb-row { min-height: 56px; background: var(--row); border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+.lay-tabellone .tb-row:nth-child(even) { background: var(--row2); }
+.lay-tabellone .tb-row:hover { box-shadow: inset 4px 0 0 var(--accent); }
+.lay-tabellone .tb-row:focus-visible { outline-offset: -2px; }
+.lay-tabellone .tb-row .tb-plate { width: 38px; height: 38px; border-radius: 7px; }
+.lay-tabellone .tb-nm { min-width: 0; }
+.lay-tabellone .tb-nm b { display: block; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lay-tabellone .tb-nm span { display: block; font-size: 13px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lay-tabellone .tb-c { font-size: 14px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lay-tabellone .tb-st { display: inline-flex; align-items: center; font-weight: 700; font-size: 15px; letter-spacing: .02em; perspective: 300px; white-space: nowrap; }
+.lay-tabellone .tb-st span { display: inline-block; transform-origin: 50% 0; animation: tb-flap .55s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i) * 22ms); }
+@keyframes tb-flap { from { transform: rotateX(-75deg); } to { transform: none; } }
+.lay-tabellone .tb-st.down { color: var(--red); }
+.lay-tabellone .tb-st.slow { color: var(--amber); }
+.lay-tabellone .tb-st.unknown { color: var(--ink3); }
+.lay-tabellone .tb-lat { text-align: right; }
+.lay-tabellone .tb-row .tb-lat { font-size: 15px; color: var(--ink2); }
+.lay-tabellone .tb-row .tb-lat.slow { color: var(--amber); }
+.lay-tabellone .tb-row .tb-lat.down, .lay-tabellone .tb-row .tb-lat.unknown { color: var(--ink3); }
+.lay-tabellone .tb-row .pin-btn { opacity: .55; color: var(--ink3); }
+.lay-tabellone .tb-row:hover .pin-btn, .lay-tabellone .tb-row .pin-btn:focus-visible { opacity: 1; }
+.lay-tabellone .tb-row .pin-btn.on { opacity: 1; color: var(--accent); }
+.lay-tabellone .tb-board.dense .tb-row { min-height: 44px; }
+.lay-tabellone .tb-board.dense .tb-row .tb-plate { width: 30px; height: 30px; }
+.lay-tabellone .tb-board.dense .tb-nm span { display: none; }
+
+/* plugins: the shared cards, squared and joined by hairlines to read as part of the board */
+.lay-tabellone .plug-row { gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.lay-tabellone .plug { border: 0; border-radius: 0; box-shadow: none; background: var(--row); }
+.lay-tabellone .plug:hover { transform: none; box-shadow: inset 4px 0 0 var(--accent); }
+.lay-tabellone .plug-main { border-radius: 0; }
+.lay-tabellone .plug-icn { border-radius: 6px; }
+.lay-tabellone .plug-label { font-size: 11px; color: var(--ink3); }
+.lay-tabellone .plug-meta { font-size: 13px; color: var(--ink2); }
+.lay-tabellone .plug-tog { color: var(--ink3); border-radius: 0; }
+
+.lay-tabellone .tb-empty { margin: 30px 0 0; color: var(--ink3); }
+.lay-tabellone .tb-foot { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 30px; padding-top: 14px; border-top: 2px solid var(--ink); font-size: 13px; color: var(--ink3); }
+.lay-tabellone .tb-foot a { color: var(--ink2); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Container queries, so the Tweaks drawer narrowing the page reflows the board too. */
+@container (max-width: 970px) {
+  .lay-tabellone .tb-board { --tb-grid: 52px minmax(170px, 1fr) 104px 130px 76px minmax(44px, max-content); }
+  .lay-tabellone .tb-sec, .lay-tabellone .tb-acc { display: none; }
+}
+@container (max-width: 620px) {
+  .lay-tabellone .tb-cols { display: none; }
+  .lay-tabellone .tb-board { --tb-grid: 40px minmax(0, 1fr) auto minmax(30px, max-content); }
+  .lay-tabellone .tb-row { grid-template-areas: "p n s t" "p n l t"; column-gap: 10px; row-gap: 1px; padding: 8px 10px; }
+  .lay-tabellone .tb-row .tb-plate { grid-area: p; }
+  .lay-tabellone .tb-nm { grid-area: n; }
+  .lay-tabellone .tb-st { grid-area: s; justify-content: flex-end; font-size: 14px; }
+  .lay-tabellone .tb-row .tb-lat { grid-area: l; font-size: 13px; }
+  .lay-tabellone .tb-row .tb-tools { grid-area: t; }
+  .lay-tabellone .tb-hst { display: none; }
+  .lay-tabellone .tb-grp { padding: 0 10px; }
+  .lay-tabellone .tb-tabs { flex-flow: column nowrap; }
+  .lay-tabellone .tb-tablist { order: 2; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .lay-tabellone .tb-tablist button { margin-bottom: 0; padding: 0 12px; }
+  .lay-tabellone .tb-sum { margin: 0; padding: 0 0 6px; align-self: flex-start; }
+}
+@media (hover: none), (max-width: 860px) {
+  .lay-tabellone .tb-pin-tools { position: static; opacity: 1; padding: 0; background: none; margin: 0 -8px 0 -4px; }
+  .lay-tabellone .tb-row .pin-btn { opacity: 1; }
+}
+@media (max-width: 860px) {
+  .lay-tabellone .tb-wrap, .lay-tabellone .tb-top { padding-left: 16px; padding-right: 16px; }
+  .lay-tabellone .tb-host { padding-left: 16px; padding-right: 16px; flex-basis: 100%; }
+  .lay-tabellone .tb-host h2 { flex-basis: 100%; }
+  .lay-tabellone .tb-host-sum { padding-left: 16px; }
+  .lay-tabellone .tb-hosts-tog { right: 8px; }
+  .lay-tabellone .tb-clock b { font-size: 26px; }
+}
+/* On a phone the board's own star pins and unpins, so a chip keeps just the grip and two fit per line. */
+@media (max-width: 620px) {
+  .lay-tabellone .tb-pin { gap: 8px; }
+  .lay-tabellone .tb-acts kbd { display: none; }
+  .lay-tabellone .tb-pin .pin-btn { display: none; }
+  .lay-tabellone .tb-pin .grip { width: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lay-tabellone .tb-st span { animation: none; }
+  .lay-tabellone * { transition: none !important; }
+}

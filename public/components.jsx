@@ -208,6 +208,44 @@ async function loadPluginScript(manifest) {
   }
 }
 
+/* ---------------- DESIGN LAYOUTS ----------------
+   A design theme swaps the classic home for public/layouts/<id>.jsx. Compiled on
+   demand like a plugin, so whoever stays on classic never pays for the others. */
+window.__lgboardLayouts = window.__lgboardLayouts || {};
+const layoutLoads = {};
+function loadLayout(id) {
+  if (!layoutLoads[id]) layoutLoads[id] = (async () => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = `layouts/${id}.css`;
+    document.head.appendChild(css);
+    const res = await fetch(`layouts/${id}.jsx`);
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    const tag = document.createElement('script');
+    tag.dataset.layout = id;
+    tag.textContent = window.Babel.transform(await res.text(), { presets: ['react'] }).code;
+    document.head.appendChild(tag);
+    // A throw inside an inline script doesn't reject: without this the home stays blank.
+    if (!window.__lgboardLayouts[id]) throw new Error('layout did not register');
+  })();
+  return layoutLoads[id];
+}
+// Returns the layout component, null while it loads, 'classic' if it failed.
+function useLayout(id) {
+  const [, rerender] = useState(0);
+  const [failed, setFailed] = useState({});
+  useEffect(() => {
+    if (!id || window.__lgboardLayouts[id]) return;
+    let cancelled = false;
+    loadLayout(id).then(
+      () => { if (!cancelled) rerender(n => n + 1); },
+      (e) => { console.error('[layout]', id, 'load failed', e); if (!cancelled) setFailed(f => ({ ...f, [id]: true })); },
+    );
+    return () => { cancelled = true; };
+  }, [id]);
+  if (!id || failed[id]) return 'classic';
+  return window.__lgboardLayouts[id] || null;
+}
+
 function usePlugins() {
   const [manifests, setManifests] = useState([]);
   const [registry, setRegistry] = useState({});
@@ -1108,7 +1146,7 @@ function applyFonts(theme) {
 }
 
 /* ---------------- TWEAKS PANEL (non-modal drawer) ---------------- */
-function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpenStore, onOpenGallery, mode, currentTheme, onPickTheme, onSetMode }) {
+function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpenStore, onOpenGallery, mode, currentTheme, onPickTheme, onSetMode, onPickDesign }) {
   const [render, setRender] = useState(open);
   const [closing, setClosing] = useState(false);
   // Keep the drawer mounted through the close animation, then unmount.
@@ -1136,6 +1174,16 @@ function TweaksPanel({ open, onClose, themeCfg, features, prefs, setPrefs, onOpe
             <Icons.close size={15} />
           </button>
         </header>
+
+        <div className="tw-group">
+          <div className="tw-label">Design</div>
+          <div className="tw-designs">
+            {[{ id: null, label: 'Classic' }, ...DESIGN_BASES].map(d => (
+              <button key={d.id || 'classic'} className={(resolveTheme(curId, customThemes).layout || null) === d.id ? 'on' : ''}
+                onClick={() => onPickDesign(d.id)}>{d.label}</button>
+            ))}
+          </div>
+        </div>
 
         <div className="tw-group">
           <div className="tw-label">Theme</div>
@@ -1231,8 +1279,17 @@ function Dashboard({ clientPrefs }) {
   const { manifests: pluginManifests, registry: pluginRegistry } = usePlugins();
   const { hosts: statHosts, loaded: statsLoaded, netHistory } = useServerStats(3000);
   // Layout order lives in prefs (localStorage): each device keeps its own.
-  const sectionSort = useSortable('section', (o) => setPrefs(p => ({ ...p, sectionOrder: o })));
+  // Each design keeps its own section order, so reordering one leaves the others alone.
+  const sectionSort = useSortable('section', (o) => setPrefs(p => {
+    const lay = resolveTheme(p.theme ?? cfg?.theme?.accent, p.customThemes || []).layout;
+    return { ...p, [lay ? `sectionOrder:${lay}` : 'sectionOrder']: o };
+  }));
   const favSort = useSortable('fav', (o) => setPrefs(p => ({ ...p, favOrder: o })));
+
+  const activeTheme = resolveTheme(
+    normalizeThemeId(prefs.theme ?? cfg?.theme?.accent ?? 'ink', prefs.mode ?? cfg?.theme?.mode ?? 'dark'),
+    prefs.customThemes || []);
+  const Layout = useLayout(cfg ? activeTheme.layout : null);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -1273,10 +1330,11 @@ function Dashboard({ clientPrefs }) {
     root.dataset.theme   = themeId;
     root.dataset.mode    = mode;
     root.dataset.density = prefs.density ?? t.density ?? 'comfortable';
+    if (theme.layout) root.dataset.layout = theme.layout; else delete root.dataset.layout;
     applyThemeVars(root, theme, mode);
     void root.offsetWidth; // forced reflow commits the new vars with transitions OFF
     root.classList.remove('theme-switching');
-    applyFonts(t);
+    applyFonts({ ...t, fontDisplay: theme.fontDisplay || t.fontDisplay, fontMono: theme.fontMono || t.fontMono });
     document.title = cfg.branding?.title || 'lgboard';
     localStorage.setItem('lgboard.prefs', JSON.stringify(prefs));
   }, [cfg, prefs]);
@@ -1337,8 +1395,7 @@ function Dashboard({ clientPrefs }) {
   const pickTheme = (id) => setPrefs(p => {
     const th = resolveTheme(id, p.customThemes || []);
     const m = th.forceMode || p.mode || 'dark';
-    return { ...p, theme: id, mode: m,
-      [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: id };
+    return { ...p, theme: id, mode: m, ...(th.layout ? {} : { [m === 'light' ? 'lastLightTheme' : 'lastDarkTheme']: id }) };
   });
   // Toggle light/dark. Remember the theme we're leaving, then restore the last
   // theme used in the target mode (default to that mode's Ink accent).
@@ -1346,10 +1403,26 @@ function Dashboard({ clientPrefs }) {
     const curMode = p.mode || cfg?.theme?.mode || 'dark';
     const curId = normalizeThemeId(p.theme ?? cfg?.theme?.accent ?? 'ink', curMode);
     const leaving = curMode === 'light' ? 'lastLightTheme' : 'lastDarkTheme';
+    // A design stays the same design across modes, and is never the "last classic theme".
+    const curLayout = resolveTheme(curId, p.customThemes || []).layout;
+    if (curLayout) return { ...p, mode: m, theme: `${curLayout}-${m}` };
     const memo = { ...p, [leaving]: curId };
     let target = (m === 'light' ? memo.lastLightTheme : memo.lastDarkTheme) || `ink-${m}`;
-    if ((resolveTheme(target, p.customThemes || []).forceMode || m) !== m) target = `ink-${m}`;
+    const t = resolveTheme(target, p.customThemes || []);
+    if ((t.forceMode || m) !== m || t.layout) target = `ink-${m}`;
     return { ...memo, mode: m, theme: target };
+  });
+  // Tweaks' Design picker: a design in the current mode, or back to the last classic theme.
+  const pickDesign = (layout) => setPrefs(p => {
+    const m = p.mode || cfg?.theme?.mode || 'dark';
+    const key = m === 'light' ? 'lastLightTheme' : 'lastDarkTheme';
+    if (layout) {
+      const cur = normalizeThemeId(p.theme ?? cfg?.theme?.accent ?? 'ink', m);
+      return { ...p, mode: m, theme: `${layout}-${m}`, ...(resolveTheme(cur, p.customThemes || []).layout ? {} : { [key]: cur }) };
+    }
+    const last = p[key];
+    const t = last && resolveTheme(last, p.customThemes || []);
+    return { ...p, mode: m, theme: t && !t.layout && (t.forceMode || m) === m ? last : `ink-${m}` };
   });
 
   if (err) return <div style={{padding: 40}}>Error loading <code>config.json</code>: {err}</div>;
@@ -1417,7 +1490,7 @@ function Dashboard({ clientPrefs }) {
     : categories.map(c => ({ key: 'cat:' + c.id, icon: Icons[c.icon] || Icons.server, title: c.label, list: shownApps.filter(a => a.cat === c.id) }));
   // Every block below the toolbar is a draggable section; Pinned leads by default.
   const blocks = [
-    { key: 'pinned', on: show('showFavs') && favs.length > 0, icon: Icons.star, title: 'Pinned', count: favs.length,
+    { key: 'pinned', kind: 'pinned', on: show('showFavs') && favs.length > 0, icon: Icons.star, title: 'Pinned', count: favs.length,
       body: (
         <div className="fav-grid">
           {favSort.sorted(favIds).map(id => (
@@ -1426,14 +1499,14 @@ function Dashboard({ clientPrefs }) {
           ))}
         </div>
       ) },
-    { key: 'plugins', on: pluginList.length > 0, icon: Icons.pulse, title: 'Plugins', count: pluginList.length,
+    { key: 'plugins', kind: 'plugins', on: pluginList.length > 0, icon: Icons.pulse, title: 'Plugins', count: pluginList.length,
       body: (
         <PluginBand list={pluginList} manifests={pluginManifests} onOpen={setPluginOpen}
           order={prefs.pluginOrder} onOrder={(o) => setPrefs(p => ({ ...p, pluginOrder: o }))}
           collapsed={prefs.pluginCollapsed}
           onCollapse={(id, v) => setPrefs(p => ({ ...p, pluginCollapsed: { ...p.pluginCollapsed, [id]: v } }))} />
       ) },
-    { key: 'stats', on: show('showStats'), icon: Icons.activity, title: 'Stats',
+    { key: 'stats', kind: 'stats', on: show('showStats'), icon: Icons.activity, title: 'Stats',
       body: (
         <StatsStrip
           visible={prefs.statsVisible || {}}
@@ -1444,13 +1517,36 @@ function Dashboard({ clientPrefs }) {
           netHistory={netHistory}
         />
       ) },
-    ...groups.map(g => ({ key: g.key, on: g.list.length > 0, icon: g.icon, title: g.title, count: g.list.length, body: renderApps(g.list) })),
+    ...groups.map(g => ({ key: g.key, kind: 'apps', list: g.list, on: g.list.length > 0, icon: g.icon, title: g.title, count: g.list.length, body: renderApps(g.list) })),
   ];
   const blockByKey = Object.fromEntries(blocks.map(b => [b.key, b]));
-  const sectionIds = applyOrder(blocks.map(b => b.key), prefs.sectionOrder);
+  // A design's default order expands '*' to the service sections, wherever it sits.
+  const groupKeys = blocks.filter(b => b.kind === 'apps').map(b => b.key);
+  const naturalOrder = activeTheme.order
+    ? activeTheme.order.flatMap(k => (k === '*' ? groupKeys : [k]))
+    : blocks.map(b => b.key);
+  const sectionIds = applyOrder(naturalOrder, activeTheme.layout ? prefs[`sectionOrder:${activeTheme.layout}`] : prefs.sectionOrder);
+
+  // What every design layout gets: the same data and the same actions as classic.
+  const layoutCtx = {
+    cfg, branding: cfg.branding || {}, features, show, apps, shownApps, favs, favIds, favById, categories, blocks, blockByKey, sectionIds,
+    hosts: statHosts, statsLoaded, netHistory, health, discovery, appHost, hostName,
+    plugins: pluginRegistry, manifests: pluginManifests, pluginList, openPlugin: setPluginOpen,
+    prefs, setPrefs, mode, setMode: switchMode, density: prefs.density ?? cfg.theme?.density ?? 'comfortable',
+    openSearch: () => setCmdOpen(true), tweaksOpen, toggleTweaks,
+    quickActions: cfg.quickActions || [], invokeAction, loadConfig, showToast,
+    openStore: () => setStoreOpen(true), openGallery: () => setGalleryOpen(true),
+    sectionSort, favSort,
+    isClosed: (k) => !!prefs.sectionClosed?.[k],
+    toggleClosed: (k) => setPrefs(p => ({ ...p, sectionClosed: { ...p.sectionClosed, [k]: !p.sectionClosed?.[k] } })),
+  };
+
+  // Header, sections and footer are the classic home; a design replaces all three.
+  const home = Layout === 'classic' ? null : (Layout ? <div className={`lay lay-${activeTheme.layout}`}><Layout ctx={layoutCtx} /></div> : <div className="lay" />);
 
   return (
-    <div className="shell">
+    <>
+    {home || <div className="shell">
       <Header
         branding={cfg.branding || {}}
         onOpenSearch={() => setCmdOpen(true)}
@@ -1500,12 +1596,13 @@ function Dashboard({ clientPrefs }) {
           </div>
         </footer>
       )}
+    </div>}
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} apps={apps}
         actions={cfg.quickActions || []} onInvoke={invokeAction} />
       <TweaksPanel open={tweaksOpen} onClose={() => toggleTweaks(false)}
         themeCfg={cfg.theme || {}} features={features} prefs={prefs} setPrefs={setPrefs} mode={mode}
-        currentTheme={themeId} onPickTheme={pickTheme} onSetMode={switchMode}
+        currentTheme={themeId} onPickTheme={pickTheme} onSetMode={switchMode} onPickDesign={pickDesign}
         onOpenStore={() => setStoreOpen(true)}
         onOpenGallery={() => setGalleryOpen(true)} />
       <ThemeGalleryModal open={galleryOpen} onClose={() => setGalleryOpen(false)}
@@ -1519,8 +1616,12 @@ function Dashboard({ clientPrefs }) {
         installed={pluginManifests} />
       <PluginSurfaces plugins={pluginRegistry} openId={pluginOpen} onClose={() => setPluginOpen(null)} />
       {toast && <div className="toast">{toast}</div>}
-    </div>
+    </>
   );
 }
 
-window.Dashboard = Dashboard;
+// Layouts live in their own files (public/layouts) and share these with classic.
+Object.assign(window, {
+  Dashboard, useSortable, applyOrder, formatBytes, fmtUptime, dotClass, statusTitle, resolveTarget,
+  PinButton, PluginTileActions, PluginBand, DiskBar,
+});
